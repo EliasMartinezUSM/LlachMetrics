@@ -103,3 +103,9 @@ html,body{background:var(--paper);color:var(--ink)}
 .prediction-note{display:flex;align-items:center;gap:11px;padding:14px 17px;border:1px solid #294245;border-radius:7px;color:#8ca4a5;background:#102a2d;font-size:11px}.prediction-note>svg:first-child{flex:0 0 auto;color:#61e3e0}.prediction-note p{flex:1;margin:0;line-height:1.5}.prediction-note strong{color:#b7cfcc}.prediction-note>svg:last-child{color:#789294}
 @media(max-width:900px){.prediction-summary{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.prediction-summary{gap:9px}.prediction-summary article{min-height:70px;padding:11px}.section-heading{align-items:flex-start;flex-direction:column;gap:8px}.vehicle-prediction-main{padding:15px}.vehicle-prediction-title{align-items:flex-start;flex-wrap:wrap}.risk-label{margin-left:60px;margin-top:-5px}.vehicle-recommendation{align-items:flex-start;flex-direction:column;gap:12px}.prediction-meta{justify-content:flex-start;gap:7px}.tire-details{padding:0 15px 12px;overflow-x:auto}.tire-details-heading,.tire-row{min-width:560px}.prediction-note{align-items:flex-start}}
+
+/* Keep sidebar controls anchored to the viewport. */
+.sidebar{height:100vh;min-height:0;align-self:flex-start;position:sticky;top:0;overflow:hidden}
+.sidebar nav{min-height:0;overflow-y:auto}
+.sidebar-bottom{flex-shrink:0}
+@media(max-width:900px){.sidebar{position:fixed;top:0;bottom:0;height:100vh;align-self:auto}}
