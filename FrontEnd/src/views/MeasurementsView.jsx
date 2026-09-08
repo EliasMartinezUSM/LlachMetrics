@@ -1,0 +1,7 @@
+import { Search, Settings2, TrendingUp } from 'lucide-react'
+import { readings } from '../data/dashboardData'
+
+export default function MeasurementsView() {
+  const ranges = { 'Presion media': '7,0 - 8,5 bar', 'Desgaste de banda': '0 - 80 %', 'Temperatura rueda': '20 - 70 C', 'Flota operativa': '90 - 100 %' }
+  return <><section className="page-heading"><div><p className="eyebrow">Control de vehiculos</p><h1>Métricas</h1><p className="subtitle">Supervisa cada unidad y el estado de sus neumaticos.</p></div><button className="primary-button compact"><Search size={17} /> Nueva consulta</button></section><section className="panel table-panel"><div className="table-toolbar"><div className="tabs"><button className="active">Toda la flota</button><button>Alertas <span>3</span></button></div><button className="filter-button"><Settings2 size={16} /> Filtrar</button></div><div className="table-wrap"><table><thead><tr><th>Indicador</th><th>Valor actual</th><th>Rango seguro</th><th>Tendencia</th><th>Estado</th><th /></tr></thead><tbody>{readings.map((reading) => { const Icon = reading.icon; return <tr key={reading.label}><td><span className={`table-icon ${reading.tone}`}><Icon size={16} /></span><strong>{reading.label}</strong></td><td><b>{reading.value}</b> {reading.unit}</td><td>{ranges[reading.label]}</td><td><span className="trend-up"><TrendingUp size={15} /> {reading.detail}</span></td><td><span className="status-pill"><i /> Dentro del rango</span></td><td><button className="more-button">...</button></td></tr> })}</tbody></table></div></section></>
+}
