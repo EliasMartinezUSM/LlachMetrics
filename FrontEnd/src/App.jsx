@@ -5,7 +5,13 @@ import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
-  return user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Login onLogin={setUser} />
+
+  function handleLogout() {
+    localStorage.removeItem('access_token')
+    setUser(null)
+  }
+
+  return user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={setUser} />
 }
 
 export default App
