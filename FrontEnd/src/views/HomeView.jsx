@@ -1,17 +1,19 @@
-import { AlertTriangle, ClipboardList, Gauge, ShieldCheck, Truck, Wrench } from 'lucide-react'
-import { vehicles } from '../data/dashboardData'
+import { AlertTriangle, ClipboardList, Gauge, Route, Truck } from 'lucide-react'
 
-const summary = [
-  { label: 'Vehiculos activos', value: '24', detail: '+3 esta semana', icon: Truck, tone: 'blue' },
-  { label: 'Alertas abiertas', value: '3', detail: '1 critica', icon: AlertTriangle, tone: 'orange' },
-  { label: 'Flota operativa', value: '94%', detail: '+4,6% vs. mes anterior', icon: ShieldCheck, tone: 'green' },
-  { label: 'Mantenimientos', value: '5', detail: 'Proximos 7 dias', icon: Wrench, tone: 'purple' },
-]
+const format = (value, digits = 0) => Number(value || 0).toLocaleString('es-ES', { maximumFractionDigits: digits })
 
-export default function HomeView({ onNavigate }) {
+export default function HomeView({ onNavigate, data }) {
+  const { summary, vehicles } = data
+  const cracked = vehicles.reduce((total, vehicle) => total + vehicle.neumaticos_agrietados, 0)
+  const cards = [
+    { label: 'Vehiculos registrados', value: summary.vehiculos, detail: `${summary.neumaticos} neumáticos`, icon: Truck, tone: 'blue' },
+    { label: 'Neumaticos agrietados', value: cracked, detail: 'Según lecturas cargadas', icon: AlertTriangle, tone: 'orange' },
+    { label: 'Kilometros acumulados', value: format(summary.kilometros_totales), detail: 'En viajes registrados', icon: Route, tone: 'green' },
+    { label: 'Costo acumulado', value: `$${format(summary.costo_total, 2)}`, detail: 'Costo de los viajes', icon: Gauge, tone: 'purple' },
+  ]
   return <>
-    <section className="welcome-row"><div><p className="eyebrow">Lunes, 24 de junio de 2024</p><h1>Panel <em>General.</em></h1><p className="subtitle">Resumen operativo y estado actual de tu flota.</p></div><button className="outline-button" onClick={() => onNavigate('mediciones')}><ClipboardList size={17} /> Ver métricas</button></section>
-    <section className="metrics-grid summary-grid">{summary.map(({ label, value, detail, icon: Icon, tone }) => <article className="metric-card summary-card" key={label}><div className={`metric-icon ${tone}`}><Icon size={19} /></div><div className="metric-meta"><span>{label}</span><small>{detail}</small></div><div className="metric-value">{value}</div></article>)}</section>
-    <section className="panel vehicle-summary"><div className="panel-heading"><div><p className="eyebrow">Resumen por vehiculo</p><h2>Estado de la flota</h2></div></div><div className="table-wrap"><table><thead><tr><th>Vehiculo</th><th>Ruta actual</th><th><Gauge size={13} /> Presion</th><th>Desgaste</th><th>Temperatura</th><th>Estado</th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.id}><td><strong>{vehicle.id}</strong></td><td>{vehicle.route}</td><td>{vehicle.pressure}</td><td>{vehicle.wear}</td><td>{vehicle.temperature}</td><td><span className={`status-pill vehicle-status ${vehicle.tone}`}><i /> {vehicle.status}</span></td></tr>)}</tbody></table></div></section>
+    <section className="welcome-row"><div><p className="eyebrow">Datos operativos</p><h1>Panel General.</h1><p className="subtitle">Resumen real de viajes, vehículos y neumáticos.</p></div><button className="outline-button" onClick={() => onNavigate('mediciones')}><ClipboardList size={17} /> Ver métricas</button></section>
+    <section className="metrics-grid summary-grid">{cards.map(({ label, value, detail, icon: Icon, tone }) => <article className="metric-card summary-card" key={label}><div className={`metric-icon ${tone}`}><Icon size={19} /></div><div className="metric-meta"><span>{label}</span><small>{detail}</small></div><div className="metric-value">{value}</div></article>)}</section>
+    <section className="panel vehicle-summary"><div className="panel-heading"><div><p className="eyebrow">Resumen por vehiculo</p><h2>Estado de la flota</h2></div></div><div className="table-wrap"><table><thead><tr><th>Vehiculo</th><th>Viaje actual</th><th>Modelo</th><th><Gauge size={13} /> Presion promedio</th><th>Surcos promedio</th><th>Neumaticos</th><th>Recomendaciones</th></tr></thead><tbody>{vehicles.map((vehicle) => <tr key={vehicle.patente}><td><strong>{vehicle.patente}</strong></td><td>{vehicle.viaje_actual ? `Viaje #${vehicle.viaje_actual}` : 'Sin viaje'}</td><td>{vehicle.modelo || 'Sin modelo'}</td><td>{vehicle.presion_promedio != null ? `${Number(vehicle.presion_promedio).toFixed(2)} PSI` : '-'}</td><td>{vehicle.profundidad_surcos_media != null ? `${Number(vehicle.profundidad_surcos_media).toFixed(2)} mm` : '-'}</td><td>{vehicle.neumaticos}</td><td><span className="status-pill vehicle-status blue"><i /> {vehicle.recomendacion || 'Pendiente de análisis'}</span></td></tr>)}</tbody></table></div></section>
   </>
 }

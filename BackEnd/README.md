@@ -50,3 +50,31 @@ eliminarlo antes de arrancar.
 - `POST /auth/register`: crea un usuario. Recibe JSON con `email`, `password` y `full_name` opcional.
 - `POST /auth/login`: recibe formulario OAuth2 (`username` es el email y `password`) y devuelve un JWT.
 - `GET /auth/me`: devuelve el usuario autenticado. Usa `Authorization: Bearer <token>`.
+
+## Datos para el frontend
+
+- `GET /data/dashboard`: resumen agregado y estado de cada vehículo.
+- `GET /data/readings`: totales de kilómetros, costo, presiones y profundidad de surcos.
+- `GET /data/vehicles`: métricas agregadas por patente, incluido el último registro de presión.
+- `GET /data/vehicles/{patente}/series`: serie histórica de viajes y presión de un vehículo.
+- `GET /data/trips`: serie histórica de toda la flota, incluyendo la patente.
+
+Estos endpoints leen las tablas `Neumatico`, `Vehiculo`, `Viaje-Vehiculo`, `Viaje` y
+`Conductor`. La API no genera valores para temperatura, ruta o predicciones porque
+esas columnas no existen en el esquema actual.
+
+## Poblar datos de prueba
+
+Desde la carpeta `BackEnd`, con el entorno virtual activo:
+
+```powershell
+python scripts/seed_database.py
+```
+
+El script lee `../synthetic.csv`, crea una flota reutilizable de 12 vehículos
+y 8 conductores, y carga viajes, relaciones viaje-vehículo y cuatro neumáticos
+por cada viaje. Para volver a cargar desde cero las tablas de negocio:
+
+```powershell
+python scripts/seed_database.py --reset-business-data
+```
