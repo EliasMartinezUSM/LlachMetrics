@@ -154,6 +154,14 @@ button,input,select{color:var(--ink)}
 .prediction-hero h2 em,.alert-card .eyebrow,.alert-card>svg{color:var(--accent)}
 .alert-card p:last-child,.weather-row span,.prediction-confidence,.prediction-hero>p:not(.eyebrow){color:var(--muted)}
 .prediction-confidence div,.prediction-confidence i,.yellow-dot,.blue-dot,.status-dot{background:var(--accent)}
+.vehicle-prediction.green{border-left-color:#4caf78}
+.vehicle-prediction.green .risk-label{color:#9be2b4;background:#163d2b}
+.vehicle-prediction.yellow{border-left-color:#d8b54a}
+.vehicle-prediction.yellow .risk-label{color:#f4d878;background:#514521}
+.vehicle-prediction.orange{border-left-color:#d98b45}
+.vehicle-prediction.orange .risk-label{color:#ffc080;background:#52351f}
+.vehicle-prediction.red{border-left-color:#d95f68}
+.vehicle-prediction.red .risk-label{color:#ffabb0;background:#4a252b}
 .score-ring{border-color:var(--line);border-right-color:var(--accent);border-top-color:var(--accent)}
 th{color:var(--muted)}
 td{color:var(--muted);border-color:var(--line)}
