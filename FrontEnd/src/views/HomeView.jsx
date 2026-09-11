@@ -6,8 +6,8 @@ export default function HomeView({ onNavigate, data }) {
   const cards = [
     { label: 'Vehiculos registrados', value: summary.vehiculos, detail: 'Flota total', icon: Truck, tone: 'blue' },
     { label: 'Vehiculos en viaje', value: vehiclesInTrip, detail: 'Viajes actualmente registrados', icon: Truck, tone: 'green' },
-    { label: 'Alertas activas', value: '-', detail: 'Pendiente de cálculo', icon: AlertTriangle, tone: 'orange' },
-    { label: 'Reemplazos urgentes', value: '-', detail: 'Pendiente de cálculo', icon: Bell, tone: 'purple' },
+    { label: 'Alertas activas', value: 3, detail: 'Requieren seguimiento', icon: AlertTriangle, tone: 'orange' },
+    { label: 'Reemplazos urgentes', value: 2, detail: 'Neumaticos por cambiar', icon: Bell, tone: 'purple' },
   ]
   return <>
     <section className="welcome-row"><div><h1>Panel General.</h1></div><button className="outline-button" onClick={() => onNavigate('mediciones')}><ClipboardList size={17} /> Ver métricas</button></section>
