@@ -11,6 +11,6 @@ async function getData(path) {
 }
 
 export function getDashboardData() {
-  return Promise.all([getData('/data/dashboard'), getData('/data/trips')])
-    .then(([dashboard, trips]) => ({ ...dashboard, trips }))
+  return Promise.all([getData('/data/dashboard'), getData('/data/trips'), getData('/data/tires'), getData('/data/pressure-series'), getData('/data/distance-series'), getData('/data/tread-series')])
+    .then(([dashboard, trips, tires, pressureSeries, distanceSeries, treadSeries]) => ({ ...dashboard, trips, tires, pressureSeries, distanceSeries, treadSeries }))
 }

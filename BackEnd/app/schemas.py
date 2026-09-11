@@ -38,6 +38,37 @@ class VehicleMetrics(BaseModel):
     recomendacion: str = "Pendiente de análisis"
 
 
+class TireReading(BaseModel):
+    id: int
+    patente: str
+    eje: int | None = None
+    lado: str | None = None
+    posicion: str | None = None
+    profundidad_surcos: float | None = None
+
+
+class PressureSeriesPoint(BaseModel):
+    id_viaje: int
+    fecha: date | None = None
+    patente: str
+    presion_final: float | None = None
+
+
+class DistanceSeriesPoint(BaseModel):
+    id_viaje: int
+    fecha: date | None = None
+    patente: str
+    kilometros_acumulados: float = 0
+    kilometros_acumulados_vehiculo: float = 0
+
+
+class TreadSeriesPoint(BaseModel):
+    id: int
+    fecha: date | None = None
+    patente: str
+    profundidad_surcos: float | None = None
+
+
 class TripSeriesPoint(BaseModel):
     id_viaje: int
     fecha: date | None = None

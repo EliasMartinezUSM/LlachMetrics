@@ -51,6 +51,10 @@ class DataContractTests(unittest.TestCase):
         self.assertIn("/data/readings", routes)
         self.assertIn("/data/vehicles", routes)
         self.assertIn("/data/trips", routes)
+        self.assertIn("/data/tires", routes)
+        self.assertIn("/data/pressure-series", routes)
+        self.assertIn("/data/distance-series", routes)
+        self.assertIn("/data/tread-series", routes)
         self.assertIn("/data/vehicles/{patente}/series", routes)
 
 

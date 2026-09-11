@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpRight, UserRound } from 'lucide-react'
+import { UserRound } from 'lucide-react'
 import Logo from './Logo'
 
 export default function Login({ onLogin }) {
@@ -48,6 +48,6 @@ export default function Login({ onLogin }) {
   }
 
   return <main className="login-shell">
-    <div className="login-panel"><Logo /><div className="login-form-wrap"><p className="eyebrow">Bienvenido de vuelta</p><h2>Entra a tu espacio</h2><p className="form-intro">Supervisa tus vehiculos y adelanta el mantenimiento de cada neumatico.</p><form onSubmit={handleSubmit}><label htmlFor="email">Correo electronico</label><div className="input-wrap"><UserRound size={18} /><input id="email" type="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} required /></div><label htmlFor="password">Contrasena</label><div className="input-wrap"><span className="lock-icon">*</span><input id="password" type="password" placeholder="********" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>{error && <p className="login-error" role="alert">{error}</p>}<div className="form-options"><label className="check-label"><input type="checkbox" /> <span>Recordarme</span></label><a href="#forgot">Olvidaste tu contrasena?</a></div><button className="primary-button" type="submit" disabled={loading}>{loading ? 'Conectando...' : 'Acceder'} {!loading && <ArrowUpRight size={18} />}</button></form><p className="login-help">Necesitas ayuda? <a href="#support">Habla con soporte</a></p></div><div className="login-legal">2024 LlachMetrics <span>-</span> Privacidad <span>-</span> Terminos</div></div>
+    <div className="login-panel"><Logo /><div className="login-form-wrap"><p className="eyebrow">Bienvenido</p><h2>Iniciar sesión</h2><p className="form-intro">Supervisa tus flota y optimiza su operación.</p><form onSubmit={handleSubmit}><label htmlFor="email">Correo electrónico</label><div className="input-wrap"><UserRound size={18} /><input id="email" type="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} required /></div><label htmlFor="password">Contraseña</label><div className="input-wrap"><span className="lock-icon">*</span><input id="password" type="password" placeholder="********" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>{error && <p className="login-error" role="alert">{error}</p>}<div className="form-options"><a href="#forgot">¿Olvidaste tu contraseña?</a></div><button className="primary-button" type="submit" disabled={loading}>{loading ? 'Conectando...' : 'Iniciar sesión'}</button></form><p className="login-help">¿Necesitas ayuda? <a href="#support">Habla con soporte</a></p></div><div className="login-legal">2026 LlachMetrics <span>-</span> Privacidad <span>-</span> Términos</div></div>
   </main>
 }

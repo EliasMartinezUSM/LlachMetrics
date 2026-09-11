@@ -17,9 +17,13 @@ from app.deps import get_current_user
 from app.models import PasswordHash, Tire, Trip, TripVehicle, User, Vehicle
 from app.schemas import (
     DashboardData,
+    DistanceSeriesPoint,
     FleetTripSeriesPoint,
+    PressureSeriesPoint,
     ReadingSummary,
+    TireReading,
     Token,
+    TreadSeriesPoint,
     TripSeriesPoint,
     UserCreate,
     UserResponse,
@@ -233,6 +237,101 @@ def read_fleet_series(
                 presion_final=trip_vehicle.presion_final,
             )
             for trip, trip_vehicle in rows
+        ]
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
+
+
+@app.get("/data/pressure-series", response_model=list[PressureSeriesPoint])
+def read_pressure_series(
+    db: Annotated[Session, Depends(get_db)],
+) -> list[PressureSeriesPoint]:
+    try:
+        rows = db.execute(
+            select(Trip, TripVehicle)
+            .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
+            .where(TripVehicle.presion_final.is_not(None))
+            .order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)
+        ).all()
+        return [
+            PressureSeriesPoint(
+                id_viaje=trip.id,
+                fecha=trip.fecha,
+                patente=trip_vehicle.id_vehiculo,
+                presion_final=trip_vehicle.presion_final,
+            )
+            for trip, trip_vehicle in rows
+        ]
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
+
+
+@app.get("/data/distance-series", response_model=list[DistanceSeriesPoint])
+def read_distance_series(
+    db: Annotated[Session, Depends(get_db)],
+) -> list[DistanceSeriesPoint]:
+    try:
+        rows = db.execute(
+            select(Trip, TripVehicle)
+            .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
+            .where(Trip.kilometros.is_not(None))
+            .order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)
+        ).all()
+        fleet_total = 0.0
+        vehicle_totals: dict[str, float] = {}
+        result = []
+        for trip, trip_vehicle in rows:
+            patente = trip_vehicle.id_vehiculo
+            distance = float(trip.kilometros or 0)
+            fleet_total += distance
+            vehicle_totals[patente] = vehicle_totals.get(patente, 0) + distance
+            result.append(
+                DistanceSeriesPoint(
+                    id_viaje=trip.id,
+                    fecha=trip.fecha,
+                    patente=patente,
+                    kilometros_acumulados=fleet_total,
+                    kilometros_acumulados_vehiculo=vehicle_totals[patente],
+                )
+            )
+        return result
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
+
+
+@app.get("/data/tread-series", response_model=list[TreadSeriesPoint])
+def read_tread_series(db: Annotated[Session, Depends(get_db)]) -> list[TreadSeriesPoint]:
+    try:
+        tires = db.scalars(
+            select(Tire).order_by(Tire.fecha_adquisicion, Tire.id)
+        ).all()
+        return [
+            TreadSeriesPoint(
+                id=tire.id,
+                fecha=tire.fecha_adquisicion,
+                patente=tire.id_vehiculo,
+                profundidad_surcos=tire.profundidad_surcos,
+            )
+            for tire in tires
+        ]
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
+
+
+@app.get("/data/tires", response_model=list[TireReading])
+def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireReading]:
+    try:
+        tires = db.scalars(select(Tire).order_by(Tire.id_vehiculo, Tire.eje, Tire.lado, Tire.posicion, Tire.id)).all()
+        return [
+            TireReading(
+                id=tire.id,
+                patente=tire.id_vehiculo,
+                eje=tire.eje,
+                lado=tire.lado,
+                posicion=tire.posicion,
+                profundidad_surcos=tire.profundidad_surcos,
+            )
+            for tire in tires
         ]
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
