@@ -40,7 +40,7 @@ class Tire(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     id_vehiculo: Mapped[str] = mapped_column(ForeignKey("Vehiculo.Patente"), index=True)
     fecha_adquisicion: Mapped[date | None] = mapped_column("Fecha adquisicion", Date, nullable=True)
-    cantidad_recauches: Mapped[int | None] = mapped_column("Cantidad recauchajes", Integer, nullable=True, default=0)
+    cantidad_recauchajes: Mapped[int | None] = mapped_column("Cantidad recauchajes", Integer, nullable=True, default=0)
     profundidad_surcos: Mapped[float | None] = mapped_column("Profundidad surcos", Numeric, nullable=True)
     agrietado: Mapped[bool | None] = mapped_column("Agrietado", Boolean, nullable=True)
     kilometros: Mapped[float | None] = mapped_column("Kilometros", Numeric, nullable=True)

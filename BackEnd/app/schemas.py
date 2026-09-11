@@ -25,13 +25,17 @@ class Token(BaseModel):
 class VehicleMetrics(BaseModel):
     patente: str
     modelo: str | None = None
+    viaje_actual: int | None = None
     kilometraje: float | None = None
     consumo_total: float | None = None
     profundidad_surcos_media: float | None = None
     kilometros_neumaticos: float | None = None
+    neumaticos: int = 0
     neumaticos_agrietados: int = 0
     presion_inicio: float | None = None
     presion_final: float | None = None
+    presion_promedio: float | None = None
+    recomendacion: str = "Pendiente de análisis"
 
 
 class TripSeriesPoint(BaseModel):

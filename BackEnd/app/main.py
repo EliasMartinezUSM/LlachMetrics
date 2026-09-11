@@ -147,19 +147,32 @@ def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMet
             key=lambda item: item[1] or date.min,
         )
         latest_pressure = vehicle_pressures[-1][0] if vehicle_pressures else None
+        current_tires = {
+            (tire.eje, tire.lado, tire.posicion): tire
+            for tire in vehicle_tires
+        }
         tread_values = [t.profundidad_surcos for t in vehicle_tires if t.profundidad_surcos is not None]
         tire_kilometers = [t.kilometros for t in vehicle_tires if t.kilometros is not None]
+        pressure_values = [
+            pressure_value
+            for pressure, _ in vehicle_pressures
+            for pressure_value in (pressure.presion_inicio, pressure.presion_final)
+            if pressure_value is not None
+        ]
         result.append(
             VehicleMetrics(
                 patente=vehicle.patente,
                 modelo=vehicle.modelo,
+                viaje_actual=latest_pressure.id_viaje if latest_pressure else None,
                 kilometraje=vehicle.kilometraje,
                 consumo_total=vehicle.consumo_total,
                 profundidad_surcos_media=(sum(tread_values) / len(tread_values) if tread_values else None),
                 kilometros_neumaticos=sum(tire_kilometers) if tire_kilometers else None,
+                neumaticos=len(current_tires),
                 neumaticos_agrietados=sum(1 for tire in vehicle_tires if tire.agrietado),
                 presion_inicio=latest_pressure.presion_inicio if latest_pressure else None,
                 presion_final=latest_pressure.presion_final if latest_pressure else None,
+                presion_promedio=(sum(pressure_values) / len(pressure_values) if pressure_values else None),
             )
         )
     return result

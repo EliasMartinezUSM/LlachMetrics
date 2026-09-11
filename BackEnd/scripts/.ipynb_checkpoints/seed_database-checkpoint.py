@@ -115,7 +115,7 @@ def add_tires(db, vehicle: Vehicle, row: dict[str, str], trip_date: date) -> Non
             Tire(
                 id_vehiculo=vehicle.patente,
                 fecha_adquisicion=trip_date - timedelta(days=180),
-                cantidad_recauches=0,
+                cantidad_recauchajes=0,
                 profundidad_surcos=float(row["tread_depth_mm"]),
                 agrietado=row["has_cracks"].strip().lower() == "true",
                 kilometros=float(row["distance_km"]),
