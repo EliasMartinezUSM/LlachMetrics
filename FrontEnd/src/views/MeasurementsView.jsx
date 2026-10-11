@@ -525,35 +525,6 @@ export default function MeasurementsView({ data }) {
       xTitle: 'Viaje',
     },
   ]
-  const readings = [
-    [
-      'Presion final media',
-      format(values.average(values.pressures)),
-      'PSI',
-      'Registrada en Viaje-Vehiculo',
-    ],
-    [
-      'Profundidad de surcos',
-      format(values.average(values.tread)),
-      'mm',
-      'Registrada en Neumatico',
-    ],
-    [
-      'Kilometros acumulados',
-      format(values.distance.at(-1) || 0, 0),
-      'km',
-      'Acumulados por fecha de viaje',
-    ],
-    [
-      'Costo acumulado',
-      format(
-        values.costs.reduce((total, value) => total + Number(value), 0),
-        2,
-      ),
-      'USD',
-      'Registrado en Viaje',
-    ],
-  ]
   return (
     <>
       <section className="page-heading">
@@ -653,31 +624,71 @@ export default function MeasurementsView({ data }) {
       <section className="panel table-panel">
         <div className="table-toolbar">
           <div>
-            <p className="eyebrow">Indicadores actuales</p>
-            <h2>Lecturas detalladas</h2>
+            <p className="eyebrow">Detalle de neumáticos</p>
+            <h2>Registros de la base de datos</h2>
           </div>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Indicador</th>
-                <th>Valor actual</th>
-                <th>Origen</th>
+                <th>ID</th>
+                <th>Vehículo</th>
+                <th>Eje</th>
+                <th>Lado</th>
+                <th>Posición</th>
+                <th>Adquisición</th>
+                <th>Recauchajes</th>
+                <th>Profundidad</th>
+                <th>Agrietado</th>
+                <th>Kilómetros</th>
               </tr>
             </thead>
             <tbody>
-              {readings.map(([label, value, unit, source]) => (
-                <tr key={label}>
-                  <td>
-                    <strong>{label}</strong>
+              {tires.length ? (
+                tires.map((tire) => (
+                  <tr key={tire.id}>
+                    <td>{tire.id}</td>
+                    <td>
+                      <strong>{tire.patente}</strong>
+                    </td>
+                    <td>{tire.eje ?? '-'}</td>
+                    <td>{tire.lado || '-'}</td>
+                    <td>{tire.posicion || '-'}</td>
+                    <td>
+                      {tire.fecha_adquisicion
+                        ? new Date(
+                            `${tire.fecha_adquisicion}T00:00:00`,
+                          ).toLocaleDateString('es-ES')
+                        : '-'}
+                    </td>
+                    <td>{tire.cantidad_recauchajes ?? '-'}</td>
+                    <td>
+                      {tire.profundidad_surcos != null
+                        ? `${format(tire.profundidad_surcos, 2)} mm`
+                        : '-'}
+                    </td>
+                    <td>
+                      {tire.agrietado == null
+                        ? '-'
+                        : tire.agrietado
+                          ? 'Sí'
+                          : 'No'}
+                    </td>
+                    <td>
+                      {tire.kilometros != null
+                        ? `${format(tire.kilometros, 0)} km`
+                        : '-'}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10}>
+                    No hay neumáticos para los filtros seleccionados.
                   </td>
-                  <td>
-                    <b>{value}</b> {unit}
-                  </td>
-                  <td>{source}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

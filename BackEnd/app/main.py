@@ -326,10 +326,14 @@ def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireRead
             TireReading(
                 id=tire.id,
                 patente=tire.id_vehiculo,
+                fecha_adquisicion=tire.fecha_adquisicion,
+                cantidad_recauchajes=tire.cantidad_recauchajes,
                 eje=tire.eje,
                 lado=tire.lado,
                 posicion=tire.posicion,
                 profundidad_surcos=tire.profundidad_surcos,
+                agrietado=tire.agrietado,
+                kilometros=tire.kilometros,
             )
             for tire in tires
         ]

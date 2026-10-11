@@ -1,11 +1,13 @@
 import os
 import unittest
+from datetime import date
+from unittest.mock import Mock
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret-key-not-for-production")
 
-from app.main import app
-from app.models import Base
+from app.main import app, read_tire_readings
+from app.models import Base, Tire
 
 
 class DataContractTests(unittest.TestCase):
@@ -60,6 +62,40 @@ class DataContractTests(unittest.TestCase):
         self.assertIn("/data/distance-series", routes)
         self.assertIn("/data/tread-series", routes)
         self.assertIn("/data/vehicles/{patente}/series", routes)
+
+    def test_tire_endpoint_returns_all_persisted_tire_fields(self) -> None:
+        tire = Tire(
+            id=1,
+            id_vehiculo="LM-001",
+            fecha_adquisicion=date(2025, 1, 15),
+            cantidad_recauchajes=2,
+            profundidad_surcos=8.5,
+            agrietado=True,
+            kilometros=12500,
+            eje=1,
+            lado="Izquierdo",
+            posicion="Exterior",
+        )
+        db = Mock()
+        db.scalars.return_value.all.return_value = [tire]
+
+        result = read_tire_readings(db)[0]
+
+        self.assertEqual(
+            result.model_dump(),
+            {
+                "id": 1,
+                "patente": "LM-001",
+                "fecha_adquisicion": date(2025, 1, 15),
+                "cantidad_recauchajes": 2,
+                "eje": 1,
+                "lado": "Izquierdo",
+                "posicion": "Exterior",
+                "profundidad_surcos": 8.5,
+                "agrietado": True,
+                "kilometros": 12500,
+            },
+        )
 
 
 if __name__ == "__main__":

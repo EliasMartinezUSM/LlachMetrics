@@ -41,10 +41,14 @@ class VehicleMetrics(BaseModel):
 class TireReading(BaseModel):
     id: int
     patente: str
+    fecha_adquisicion: date | None = None
+    cantidad_recauchajes: int | None = None
     eje: int | None = None
     lado: str | None = None
     posicion: str | None = None
     profundidad_surcos: float | None = None
+    agrietado: bool | None = None
+    kilometros: float | None = None
 
 
 class PressureSeriesPoint(BaseModel):
