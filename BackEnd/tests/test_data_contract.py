@@ -1,4 +1,8 @@
+import os
 import unittest
+
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret-key-not-for-production")
 
 from app.main import app
 from app.models import Base

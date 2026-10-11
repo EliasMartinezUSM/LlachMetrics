@@ -24,6 +24,9 @@ Argon2 extrae ese salt del hash guardado para verificar la contraseña.
    ```
 
 4. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` y `JWT_SECRET_KEY`.
+   Ambas variables son obligatorias; `.env` es local y no se incluye en Git.
+   Usa una clave JWT aleatoria y larga, y no reutilices contraseñas reales en
+   `.env.example`.
 5. Arranca la API:
 
    ```powershell
