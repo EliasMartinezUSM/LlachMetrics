@@ -144,7 +144,7 @@ export default function PredictionsView({ data }) {
       <section className="page-heading">
         <div>
           <p className="eyebrow">Analisis de mantenimiento</p>
-          <h1>Predicciones</h1>
+          <h1>Mantenimiento</h1>
           <p className="subtitle">
             Indicadores derivados de las lecturas reales de neumáticos.
           </p>
