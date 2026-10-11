@@ -1,4 +1,8 @@
+import os
 import unittest
+
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret-key-not-for-production")
 
 from app.main import app
 from app.models import Base
@@ -51,6 +55,10 @@ class DataContractTests(unittest.TestCase):
         self.assertIn("/data/readings", routes)
         self.assertIn("/data/vehicles", routes)
         self.assertIn("/data/trips", routes)
+        self.assertIn("/data/tires", routes)
+        self.assertIn("/data/pressure-series", routes)
+        self.assertIn("/data/distance-series", routes)
+        self.assertIn("/data/tread-series", routes)
         self.assertIn("/data/vehicles/{patente}/series", routes)
 
 

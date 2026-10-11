@@ -23,12 +23,15 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import make_url
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.database import Base, SessionLocal, engine
+from app.config import get_settings
+from app.database import Base
 from app.models import Driver, Tire, Trip, TripVehicle, Vehicle
 
 
@@ -66,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Borra viajes, neumaticos, vehiculos y conductores antes de cargar",
     )
+    parser.add_argument(
+        "--database-name",
+        "--name",
+        dest="database_name",
+        help="Base de datos alternativa a la indicada en DATABASE_URL",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Semilla para datos inventados")
     return parser.parse_args()
 
@@ -86,8 +95,8 @@ def load_rows(csv_path: Path) -> list[dict[str, str]]:
         return list(reader)
 
 
-def clear_business_data() -> None:
-    with SessionLocal.begin() as db:
+def clear_business_data(session_factory: sessionmaker) -> None:
+    with session_factory.begin() as db:
         db.execute(delete(TripVehicle))
         db.execute(delete(Trip))
         db.execute(delete(Tire))
@@ -202,69 +211,90 @@ class TireLifecycle:
                 self._new_tire(vehicle, eje, lado, posicion, trip_date)
 
 
-def seed(csv_path: Path, reset: bool, seed_value: int) -> tuple[int, int, int, int]:
+def seed(
+    csv_path: Path,
+    reset: bool,
+    seed_value: int,
+    database_name: str | None = None,
+) -> tuple[int, int, int, int]:
     rows = load_rows(csv_path)
     random_generator = random.Random(seed_value)
-    Base.metadata.create_all(bind=engine)
-    if reset:
-        clear_business_data()
+    database_url = make_url(get_settings().database_url)
+    if database_name:
+        database_url = database_url.set(database=database_name)
 
-    with SessionLocal.begin() as db:
-        vehicles, drivers = get_or_create_fleet(db, random_generator)
-        vehicle_codes = [vehicle.patente for vehicle in vehicles]
-        driver_ids = [driver.id for driver in drivers]
-
-    tire_updates = 0
+    engine = create_engine(database_url, pool_pre_ping=True, connect_args={"connect_timeout": 3})
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     try:
-        with SessionLocal.begin() as db:
-            lifecycle = TireLifecycle(db, random_generator)
+        Base.metadata.create_all(bind=engine)
+        if reset:
+            clear_business_data(session_factory)
 
-            first_date = date.today() - timedelta(days=len(rows))
-            for row_index, row in enumerate(rows):
-                vehicle = db.get(Vehicle, vehicle_codes[row_index % len(vehicle_codes)])
-                driver_id = driver_ids[row_index % len(driver_ids)]
-                trip_date = first_date + timedelta(days=row_index)
-                distance_km = float(row["distance_km"])
+        with session_factory.begin() as db:
+            vehicles, drivers = get_or_create_fleet(db, random_generator)
+            vehicle_codes = [vehicle.patente for vehicle in vehicles]
+            driver_ids = [driver.id for driver in drivers]
 
-                trip = Trip(
-                    kilometros=distance_km,
-                    costo=float(row["cost_usd"]),
-                    fecha=trip_date,
-                    conductor=driver_id,
-                )
-                db.add(trip)
-                db.flush()
-                db.add(
-                    TripVehicle(
-                        id_viaje=trip.id,
-                        id_vehiculo=vehicle.patente,
-                        presion_inicio=float(row["pressure_start_psi"]),
-                        presion_final=float(row["pressure_end_psi"]),
+        tire_updates = 0
+        try:
+            with session_factory.begin() as db:
+                lifecycle = TireLifecycle(db, random_generator)
+
+                first_date = date.today() - timedelta(days=len(rows))
+                for row_index, row in enumerate(rows):
+                    vehicle = db.get(Vehicle, vehicle_codes[row_index % len(vehicle_codes)])
+                    driver_id = driver_ids[row_index % len(driver_ids)]
+                    trip_date = first_date + timedelta(days=row_index)
+                    distance_km = float(row["distance_km"])
+
+                    trip = Trip(
+                        kilometros=distance_km,
+                        costo=float(row["cost_usd"]),
+                        fecha=trip_date,
+                        conductor=driver_id,
                     )
-                )
+                    db.add(trip)
+                    db.flush()
+                    db.add(
+                        TripVehicle(
+                            id_viaje=trip.id,
+                            id_vehiculo=vehicle.patente,
+                            presion_inicio=float(row["pressure_start_psi"]),
+                            presion_final=float(row["pressure_end_psi"]),
+                        )
+                    )
 
-                lifecycle.ensure_tires(vehicle, trip_date)
-                lifecycle.apply_wear(vehicle, distance_km, trip_date)
-                tire_updates += TIRES_PER_VEHICLE
+                    lifecycle.ensure_tires(vehicle, trip_date)
+                    lifecycle.apply_wear(vehicle, distance_km, trip_date)
+                    tire_updates += TIRES_PER_VEHICLE
 
-                vehicle.kilometraje = float(vehicle.kilometraje or 0) + distance_km
-                vehicle.consumo_total = float(vehicle.consumo_total or 0) + float(row["cost_usd"])
-    except (SQLAlchemyError, KeyError, TypeError, ValueError) as error:
-        print(
-            f"Advertencia: no se cargaron los viajes ni neumaticos ({error}). "
-            "Los vehiculos y conductores si fueron conservados."
-        )
-        return 0, len(vehicle_codes), len(driver_ids), 0
+                    vehicle.kilometraje = float(vehicle.kilometraje or 0) + distance_km
+                    vehicle.consumo_total = float(vehicle.consumo_total or 0) + float(row["cost_usd"])
+        except (SQLAlchemyError, KeyError, TypeError, ValueError) as error:
+            print(
+                f"Advertencia: no se cargaron los viajes ni neumaticos ({error}). "
+                "Los vehiculos y conductores si fueron conservados."
+            )
+            return 0, len(vehicle_codes), len(driver_ids), 0
 
-    return len(rows), len(vehicle_codes), len(driver_ids), tire_updates
+        return len(rows), len(vehicle_codes), len(driver_ids), tire_updates
+    finally:
+        engine.dispose()
 
 
 def main() -> None:
     args = parse_args()
-    trips, vehicles, drivers, tire_updates = seed(args.csv, args.reset_business_data, args.seed)
+    trips, vehicles, drivers, tire_updates = seed(
+        args.csv,
+        args.reset_business_data,
+        args.seed,
+        args.database_name,
+    )
     mode = "reemplazados" if args.reset_business_data else "agregados"
+    database_label = f" en '{args.database_name}'" if args.database_name else ""
     print(
-        f"Carga completada: {trips} viajes {mode}, {tire_updates} actualizaciones de neumaticos "
+        f"Carga completada{database_label}: {trips} viajes {mode}, "
+        f"{tire_updates} actualizaciones de neumaticos "
         f"(desgaste/recauchaje/reemplazo), {vehicles} vehiculos y {drivers} conductores."
     )
 
