@@ -11,7 +11,11 @@ function App() {
     setUser(null)
   }
 
-  return user ? <Dashboard user={user} onLogout={handleLogout} /> : <Login onLogin={setUser} />
+  return user ? (
+    <Dashboard user={user} onLogout={handleLogout} />
+  ) : (
+    <Login onLogin={setUser} />
+  )
 }
 
 export default App

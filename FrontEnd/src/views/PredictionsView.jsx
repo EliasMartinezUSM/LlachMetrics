@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from 'react'
 import {
   AlertTriangle,
   CalendarClock,
@@ -9,43 +9,44 @@ import {
   Gauge,
   Search,
   ShieldCheck,
-  Sparkles,
   Truck,
   Wrench,
-} from "lucide-react";
+} from 'lucide-react'
 
 function predictionFor(index) {
+  // Estado demostrativo: rota los niveles por índice; no es una inferencia de un modelo.
   const states = [
     {
-      risk: "Bajo",
-      tone: "green",
-      summary: "Operación estable y sin señales urgentes.",
-      recommendation: "Mantener el plan preventivo actual.",
+      risk: 'Bajo',
+      tone: 'green',
+      summary: 'Operación estable y sin señales urgentes.',
+      recommendation: 'Mantener el plan preventivo actual.',
     },
     {
-      risk: "Moderado",
-      tone: "yellow",
-      summary: "Requiere seguimiento preventivo periódico.",
-      recommendation: "Revisar presión de aire y desgaste de neumáticos.",
+      risk: 'Moderado',
+      tone: 'yellow',
+      summary: 'Requiere seguimiento preventivo periódico.',
+      recommendation: 'Revisar presión de aire y desgaste de neumáticos.',
     },
     {
-      risk: "Alto",
-      tone: "orange",
-      summary: "Presenta condiciones que requieren atención prioritaria.",
-      recommendation: "Programar una inspección del vehículo.",
+      risk: 'Alto',
+      tone: 'orange',
+      summary: 'Presenta condiciones que requieren atención prioritaria.',
+      recommendation: 'Programar una inspección del vehículo.',
     },
     {
-      risk: "Crítico",
-      tone: "red",
+      risk: 'Crítico',
+      tone: 'red',
       summary:
-        "Requiere intervención prioritaria antes de continuar la operación.",
-      recommendation: "Evaluar estado de salud del vehículo con urgencia.",
+        'Requiere intervención prioritaria antes de continuar la operación.',
+      recommendation: 'Evaluar estado de salud del vehículo con urgencia.',
     },
-  ];
-  return states[index % states.length];
+  ]
+  return states[index % states.length]
 }
 
 function SavingsHighlight() {
+  // Cifras ilustrativas de la interfaz, no calculadas a partir de la API.
   return (
     <section className="savings-highlight">
       <div className="savings-intro">
@@ -71,7 +72,7 @@ function SavingsHighlight() {
         </div>
       </div>
     </section>
-  );
+  )
 }
 
 function MaintenanceEstimate({ tire, vehicleLabel }) {
@@ -84,13 +85,13 @@ function MaintenanceEstimate({ tire, vehicleLabel }) {
           <strong>Selecciona un vehiculo y un neumatico</strong>
         </div>
       </div>
-    );
-  const tread = Number(tire.profundidad_surcos || 0);
-  const critical = tread < 8;
-  const weeks = critical ? 3 : Math.max(4, Math.round((tread - 6) * 4));
-  const action = critical ? "cambio" : "recauchado";
+    )
+  const tread = Number(tire.profundidad_surcos || 0)
+  const critical = tread < 8
+  const weeks = critical ? 3 : Math.max(4, Math.round((tread - 6) * 4))
+  const action = critical ? 'cambio' : 'recauchado'
   return (
-    <div className={`maintenance-estimate ${critical ? "critical" : ""}`}>
+    <div className={`maintenance-estimate ${critical ? 'critical' : ''}`}>
       <CircleDot size={19} />
       <div>
         <small>Estimacion para {vehicleLabel}</small>
@@ -98,48 +99,46 @@ function MaintenanceEstimate({ tire, vehicleLabel }) {
           Se recomienda {action} en aproximadamente {weeks} semanas
         </strong>
         <span>
-          Neumatico {tire.eje ?? "-"} / {tire.lado || "-"} /{" "}
-          {tire.posicion || "-"} · {tread.toFixed(2)} mm de surco
+          Neumatico {tire.eje ?? '-'} / {tire.lado || '-'} /{' '}
+          {tire.posicion || '-'} · {tread.toFixed(2)} mm de surco
         </span>
       </div>
     </div>
-  );
+  )
 }
 
 export default function PredictionsView({ data }) {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('')
   const [selectedMaintenanceVehicle, setSelectedMaintenanceVehicle] =
-    useState("Toda la flota");
+    useState('Toda la flota')
   const [selectedMaintenanceTire, setSelectedMaintenanceTire] =
-    useState("Todos");
+    useState('Todos')
   const predictions = data.vehicles.map((vehicle, index) => ({
     vehicle,
     ...predictionFor(index),
-  }));
+  }))
   const highRisk = predictions.filter(
-    (prediction) => prediction.tone === "red",
-  ).length;
+    (prediction) => prediction.tone === 'red',
+  ).length
   const maintenanceTires =
-    selectedMaintenanceVehicle === "Toda la flota"
+    selectedMaintenanceVehicle === 'Toda la flota'
       ? data.tires
-      : data.tires.filter(
-          (tire) => tire.patente === selectedMaintenanceVehicle,
-        );
+      : data.tires.filter((tire) => tire.patente === selectedMaintenanceVehicle)
   const selectedTire =
-    selectedMaintenanceTire === "Todos"
+    selectedMaintenanceTire === 'Todos'
       ? maintenanceTires[0]
       : maintenanceTires.find(
           (tire) => String(tire.id) === selectedMaintenanceTire,
-        );
+        )
   const selectedMaintenanceVehicleData = data.vehicles.find(
     (vehicle) => vehicle.patente === selectedMaintenanceVehicle,
-  );
-  const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
+  )
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase()
   const filteredPredictions = predictions.filter(({ vehicle }) =>
-    `${vehicle.patente} ${vehicle.modelo || ""}`
+    `${vehicle.patente} ${vehicle.modelo || ''}`
       .toLocaleLowerCase()
       .includes(normalizedSearch),
-  );
+  )
   return (
     <>
       <section className="page-heading">
@@ -208,8 +207,8 @@ export default function PredictionsView({ data }) {
               id="maintenance-vehicle-filter"
               value={selectedMaintenanceVehicle}
               onChange={(event) => {
-                setSelectedMaintenanceVehicle(event.target.value);
-                setSelectedMaintenanceTire("Todos");
+                setSelectedMaintenanceVehicle(event.target.value)
+                setSelectedMaintenanceTire('Todos')
               }}
             >
               <option>Toda la flota</option>
@@ -223,19 +222,26 @@ export default function PredictionsView({ data }) {
             <select
               id="maintenance-tire-filter"
               value={selectedMaintenanceTire}
-              onChange={(event) => setSelectedMaintenanceTire(event.target.value)}
+              onChange={(event) =>
+                setSelectedMaintenanceTire(event.target.value)
+              }
             >
               <option value="Todos">Todos</option>
               {maintenanceTires.map((tire) => (
                 <option key={tire.id} value={tire.id}>
-                  Neumatico #{tire.id} · {tire.eje ?? "-"} / {tire.lado || "-"} / {tire.posicion || "-"}
+                  Neumatico #{tire.id} · {tire.eje ?? '-'} / {tire.lado || '-'}{' '}
+                  / {tire.posicion || '-'}
                 </option>
               ))}
             </select>
           </div>
           <MaintenanceEstimate
             tire={selectedTire}
-            vehicleLabel={selectedMaintenanceVehicleData?.modelo || selectedTire?.patente || "la flota"}
+            vehicleLabel={
+              selectedMaintenanceVehicleData?.modelo ||
+              selectedTire?.patente ||
+              'la flota'
+            }
           />
         </div>
       </section>
@@ -267,7 +273,7 @@ export default function PredictionsView({ data }) {
                   <div className="vehicle-prediction-title">
                     <span className="vehicle-code">{vehicle.patente}</span>
                     <div>
-                      <h3>{vehicle.modelo || "Vehículo sin modelo"}</h3>
+                      <h3>{vehicle.modelo || 'Vehículo sin modelo'}</h3>
                       <p>{summary}</p>
                     </div>
                     <span className="risk-label">Riesgo {risk}</span>
@@ -279,13 +285,13 @@ export default function PredictionsView({ data }) {
                     </div>
                     <div className="prediction-meta">
                       <span>
-                        <Gauge size={14} /> Presion:{" "}
-                        {vehicle.presion_final ?? vehicle.presion_inicio ?? "-"}{" "}
+                        <Gauge size={14} /> Presion:{' '}
+                        {vehicle.presion_final ?? vehicle.presion_inicio ?? '-'}{' '}
                         PSI
                       </span>
                       <span>
-                        <Wrench size={14} /> Surcos:{" "}
-                        {vehicle.profundidad_surcos_media ?? "-"} mm
+                        <Wrench size={14} /> Surcos:{' '}
+                        {vehicle.profundidad_surcos_media ?? '-'} mm
                       </span>
                     </div>
                   </div>
@@ -300,5 +306,5 @@ export default function PredictionsView({ data }) {
         )}
       </section>
     </>
-  );
+  )
 }

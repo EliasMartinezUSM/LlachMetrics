@@ -134,18 +134,5 @@ python scripts/seed_database.py --reset-business-data
 
 El cargador utiliza `synthetic.csv`, crea registros de vehículos y conductores, y agrega viajes, presiones y datos de neumáticos.
 
-## Pruebas y calidad
 
-Desde `BackEnd/`, con el entorno virtual activado:
-
-```powershell
-python -m unittest discover -s tests
-```
-
-Desde `FrontEnd/`:
-
-```powershell
-npm run lint
-npm run build
-```
 
