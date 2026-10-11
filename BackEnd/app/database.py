@@ -1,3 +1,5 @@
+"""Motor de PostgreSQL, sesiones SQLAlchemy y dependencia para rutas."""
+
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -16,10 +18,13 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 class Base(DeclarativeBase):
+    """Clase base común para las entidades mapeadas con SQLAlchemy."""
+
     pass
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Entrega una sesión por petición y la cierra al terminar la respuesta."""
     db = SessionLocal()
     try:
         yield db

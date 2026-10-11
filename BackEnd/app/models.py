@@ -1,3 +1,5 @@
+"""Entidades SQLAlchemy que representan las tablas de la base de datos."""
+
 from datetime import date
 
 from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, Text
@@ -7,6 +9,8 @@ from app.database import Base
 
 
 class User(Base):
+    """Cuenta de acceso; la contraseña se mantiene en la relación `PasswordHash`."""
+
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -18,6 +22,8 @@ class User(Base):
 
 
 class PasswordHash(Base):
+    """Hash de contraseña asociado uno a uno a una cuenta de usuario."""
+
     __tablename__ = "pwd_hash"
 
     id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
@@ -26,6 +32,8 @@ class PasswordHash(Base):
 
 
 class Vehicle(Base):
+    """Vehículo de la flota y sus acumulados de kilometraje y consumo."""
+
     __tablename__ = "Vehiculo"
 
     patente: Mapped[str] = mapped_column("Patente", Text, primary_key=True)
@@ -35,6 +43,8 @@ class Vehicle(Base):
 
 
 class Tire(Base):
+    """Registro de un neumático, su posición y su estado de uso."""
+
     __tablename__ = "Neumatico"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -50,6 +60,8 @@ class Tire(Base):
 
 
 class Driver(Base):
+    """Conductor asociado a los viajes registrados."""
+
     __tablename__ = "Conductor"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -57,6 +69,8 @@ class Driver(Base):
 
 
 class Trip(Base):
+    """Viaje con distancia, costo, fecha y conductor asociado."""
+
     __tablename__ = "Viaje"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -69,6 +83,8 @@ class Trip(Base):
 
 
 class TripVehicle(Base):
+    """Relación entre un viaje y un vehículo, con sus presiones de neumáticos."""
+
     __tablename__ = "Viaje-Vehiculo"
 
     id_viaje: Mapped[int] = mapped_column(ForeignKey("Viaje.id"), primary_key=True)

@@ -1,3 +1,5 @@
+"""Aplicación FastAPI: autenticación y consulta de métricas de la flota."""
+
 from contextlib import asynccontextmanager
 import logging
 from typing import Annotated
@@ -37,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Crea las tablas al iniciar; permite arrancar aunque PostgreSQL no responda."""
     try:
         Base.metadata.create_all(bind=engine)
     except SQLAlchemyError:
@@ -58,13 +61,17 @@ app.add_middleware(
 )
 
 
+# --- Estado del servicio ---
 @app.get("/health")
 def health_check() -> dict[str, str]:
+    """Comprueba que el proceso de la API esté respondiendo."""
     return {"status": "ok"}
 
 
+# --- Registro e inicio de sesión ---
 @app.post("/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
+    """Registra un usuario, guarda el hash de su contraseña y devuelve su perfil público."""
     try:
         normalized_email = user_data.email.lower()
         existing_user = db.scalar(select(User).where(User.email == normalized_email))
@@ -99,6 +106,7 @@ def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[Session, Depends(get_db)],
 ) -> Token:
+    """Verifica las credenciales y devuelve un JWT para las siguientes peticiones."""
     try:
         user = db.scalar(
             select(User).where(User.email == form_data.username.lower())
@@ -121,10 +129,13 @@ def login(
 
 @app.get("/auth/me", response_model=UserResponse)
 def read_current_user(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Devuelve el perfil del usuario autenticado por la dependencia JWT."""
     return current_user
 
 
+# --- Métricas y series históricas ---
 def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMetrics]:
+    """Combina vehículos, neumáticos y presiones para calcular indicadores por patente."""
     vehicle_query = select(Vehicle)
     tire_query = select(Tire)
     pressure_query = select(TripVehicle, Trip.fecha).join(Trip, Trip.id == TripVehicle.id_viaje)
@@ -184,6 +195,7 @@ def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMet
 
 @app.get("/data/vehicles", response_model=list[VehicleMetrics])
 def read_vehicles(db: Annotated[Session, Depends(get_db)]) -> list[VehicleMetrics]:
+    """Lista las métricas agregadas de todos los vehículos registrados."""
     try:
         return _vehicle_metrics(db)
     except SQLAlchemyError:
@@ -194,6 +206,7 @@ def read_vehicles(db: Annotated[Session, Depends(get_db)]) -> list[VehicleMetric
 def read_vehicle_series(
     patente: str, db: Annotated[Session, Depends(get_db)]
 ) -> list[TripSeriesPoint]:
+    """Devuelve los viajes y presiones ordenados cronológicamente para una patente."""
     try:
         rows = db.execute(
             select(Trip, TripVehicle)
@@ -220,6 +233,7 @@ def read_vehicle_series(
 def read_fleet_series(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[FleetTripSeriesPoint]:
+    """Devuelve los viajes de todos los vehículos para construir series de flota."""
     try:
         rows = db.execute(
             select(Trip, TripVehicle)
@@ -246,6 +260,7 @@ def read_fleet_series(
 def read_pressure_series(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[PressureSeriesPoint]:
+    """Devuelve las lecturas de presión final existentes, ordenadas por fecha y viaje."""
     try:
         rows = db.execute(
             select(Trip, TripVehicle)
@@ -270,6 +285,7 @@ def read_pressure_series(
 def read_distance_series(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[DistanceSeriesPoint]:
+    """Calcula acumulados cronológicos de distancia para la flota y cada vehículo."""
     try:
         rows = db.execute(
             select(Trip, TripVehicle)
@@ -301,6 +317,7 @@ def read_distance_series(
 
 @app.get("/data/tread-series", response_model=list[TreadSeriesPoint])
 def read_tread_series(db: Annotated[Session, Depends(get_db)]) -> list[TreadSeriesPoint]:
+    """Devuelve la profundidad de surcos registrada por neumático y fecha de adquisición."""
     try:
         tires = db.scalars(
             select(Tire).order_by(Tire.fecha_adquisicion, Tire.id)
@@ -320,6 +337,7 @@ def read_tread_series(db: Annotated[Session, Depends(get_db)]) -> list[TreadSeri
 
 @app.get("/data/tires", response_model=list[TireReading])
 def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireReading]:
+    """Expone los datos persistidos de cada neumático para filtros y tablas del frontend."""
     try:
         tires = db.scalars(select(Tire).order_by(Tire.id_vehiculo, Tire.eje, Tire.lado, Tire.posicion, Tire.id)).all()
         return [
@@ -343,6 +361,7 @@ def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireRead
 
 @app.get("/data/readings", response_model=ReadingSummary)
 def read_summary(db: Annotated[Session, Depends(get_db)]) -> ReadingSummary:
+    """Calcula totales y promedios globales de viajes, presiones y neumáticos."""
     try:
         trip_totals = db.execute(
             select(func.coalesce(func.sum(Trip.kilometros), 0), func.coalesce(func.sum(Trip.costo), 0))
@@ -366,4 +385,5 @@ def read_summary(db: Annotated[Session, Depends(get_db)]) -> ReadingSummary:
 
 @app.get("/data/dashboard", response_model=DashboardData)
 def read_dashboard(db: Annotated[Session, Depends(get_db)]) -> DashboardData:
+    """Agrupa el resumen global y las métricas por vehículo en una respuesta."""
     return DashboardData(summary=read_summary(db), vehicles=read_vehicles(db))

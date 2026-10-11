@@ -1,3 +1,5 @@
+"""Configuración de la API cargada desde variables de entorno o `.env`."""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -5,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Valores de conexión, autenticación y acceso del frontend."""
+
     database_url: str
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
@@ -22,9 +26,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
+        """Convierte la lista de orígenes separada por comas en una lista."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
 def get_settings() -> Settings:
+    """Devuelve una instancia compartida de la configuración del proceso."""
     return Settings()

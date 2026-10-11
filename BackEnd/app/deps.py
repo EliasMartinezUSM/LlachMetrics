@@ -1,3 +1,5 @@
+"""Dependencias FastAPI para autenticar peticiones con JWT."""
+
 from typing import Annotated
 
 import jwt
@@ -18,6 +20,7 @@ def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_db)],
 ) -> User:
+    """Valida el token Bearer y devuelve el usuario asociado; rechaza tokens inválidos o huérfanos."""
     settings = get_settings()
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
