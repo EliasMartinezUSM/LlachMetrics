@@ -14,11 +14,28 @@ from pathlib import Path
 
 import psycopg
 from psycopg import sql
+from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SQLAlchemyError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings
+from app.database import ensure_schema
+import app.models  # noqa: F401 - registra todas las tablas en Base.metadata
+
+
+def initialize_database_schema(database_name: str) -> None:
+    target_url = make_url(get_settings().database_url).set(database=database_name)
+    target_engine = create_engine(
+        target_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 3},
+    )
+    try:
+        ensure_schema(target_engine)
+    finally:
+        target_engine.dispose()
 
 
 def create_database(database_name: str | None = None) -> bool:
@@ -36,17 +53,22 @@ def create_database(database_name: str | None = None) -> bool:
         **configured_url.query,
     }
 
+    created = False
     with psycopg.connect(**connection_options, autocommit=True) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target_name,))
             if cursor.fetchone():
                 print(f"La base de datos '{target_name}' ya existe.")
-                return False
+            else:
+                cursor.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(target_name)))
+                created = True
 
-            cursor.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(target_name)))
-
-    print(f"Base de datos '{target_name}' creada correctamente.")
-    return True
+    initialize_database_schema(target_name)
+    if created:
+        print(f"Base de datos '{target_name}' creada e inicializada correctamente.")
+    else:
+        print(f"Esquema de '{target_name}' verificado y actualizado correctamente.")
+    return created
 
 
 def main() -> int:
@@ -59,7 +81,7 @@ def main() -> int:
 
     try:
         create_database(args.name)
-    except (psycopg.Error, ValueError) as error:
+    except (psycopg.Error, SQLAlchemyError, ValueError) as error:
         print(f"No se pudo crear la base de datos: {error}", file=sys.stderr)
         return 1
     return 0

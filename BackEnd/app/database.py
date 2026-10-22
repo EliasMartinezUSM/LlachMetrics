@@ -2,7 +2,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -30,3 +30,30 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def ensure_schema(target_engine: Engine | None = None) -> None:
+    """Crea las tablas e incorpora las columnas nuevas si la base ya existía."""
+    active_engine = target_engine or engine
+    Base.metadata.create_all(bind=active_engine)
+    if active_engine.dialect.name != "postgresql":
+        return
+
+    alter_statements = (
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS empresa TEXT DEFAULT \'Logistica Sierra\'',
+        'ALTER TABLE "Vehiculo" ADD COLUMN IF NOT EXISTS "Empresa" TEXT DEFAULT \'Logistica Sierra\'',
+        'ALTER TABLE "Conductor" ADD COLUMN IF NOT EXISTS "Empresa" TEXT DEFAULT \'Logistica Sierra\'',
+        'ALTER TABLE "Neumatico" ADD COLUMN IF NOT EXISTS "Empresa" TEXT DEFAULT \'Logistica Sierra\'',
+        'ALTER TABLE "Neumatico" ADD COLUMN IF NOT EXISTS "Serie" TEXT',
+        'ALTER TABLE "Neumatico" ADD COLUMN IF NOT EXISTS "id_interno" INTEGER',
+        'UPDATE "user" SET empresa = \'Logistica Sierra\' WHERE empresa IS NULL',
+        'UPDATE "Vehiculo" SET "Empresa" = \'Logistica Sierra\' WHERE "Empresa" IS NULL',
+        'UPDATE "Conductor" SET "Empresa" = \'Logistica Sierra\' WHERE "Empresa" IS NULL',
+        'UPDATE "Neumatico" SET "Empresa" = \'Logistica Sierra\' WHERE "Empresa" IS NULL',
+        'UPDATE "Neumatico" SET "id_interno" = LEAST(99999, 10000 + id) WHERE "id_interno" IS NULL',
+        'UPDATE "Neumatico" SET "Serie" = \'SN-\' || LPAD(id::text, 5, \'0\') WHERE "Serie" IS NULL',
+    )
+    with active_engine.begin() as connection:
+        for statement in alter_statements:
+            connection.execute(text(statement))
+

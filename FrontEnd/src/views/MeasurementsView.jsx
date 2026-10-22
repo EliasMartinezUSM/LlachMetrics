@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ResponsiveBar } from '@nivo/bar'
 import { ResponsiveLine as NivoResponsiveLine } from '@nivo/line'
 import {
@@ -10,7 +10,9 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Search,
   TrendingUp,
+  X,
 } from 'lucide-react'
 
 const format = (value, digits = 1) =>
@@ -402,12 +404,194 @@ function SeriesChart({ metric }) {
   )
 }
 
+const formatInternalId = (value) =>
+  value != null ? String(value).padStart(5, '0') : ''
+
+function tireMatchesIdentifier(tire, rawQuery) {
+  const query = rawQuery.trim().toLowerCase()
+  if (!query) return true
+  const internalFormatted = formatInternalId(tire.id_interno).toLowerCase()
+  const internalRaw =
+    tire.id_interno != null ? String(tire.id_interno).toLowerCase() : ''
+  const serial = (tire.serie || '').toLowerCase()
+  const dbId = String(tire.id).toLowerCase()
+  return (
+    internalFormatted.includes(query) ||
+    internalRaw === query ||
+    serial.includes(query) ||
+    dbId === query
+  )
+}
+
+function findMatchingTire(allTires, rawQuery) {
+  const query = rawQuery.trim().toLowerCase()
+  if (!query) return null
+  const numericQuery = /^\d+$/.test(query) ? String(Number(query)) : null
+  const exactMatch = allTires.find((tire) => {
+    const internalFormatted = formatInternalId(tire.id_interno).toLowerCase()
+    const internalRaw =
+      tire.id_interno != null ? String(tire.id_interno).toLowerCase() : ''
+    const serial = (tire.serie || '').toLowerCase()
+    return (
+      internalFormatted === query ||
+      internalRaw === query ||
+      (numericQuery !== null && internalRaw === numericQuery) ||
+      serial === query ||
+      String(tire.id).toLowerCase() === query
+    )
+  })
+  if (exactMatch) return exactMatch
+
+  const partialMatches = allTires.filter((tire) =>
+    tireMatchesIdentifier(tire, query),
+  )
+  return partialMatches.length === 1 ? partialMatches[0] : null
+}
+
 export default function MeasurementsView({ data }) {
   const Droplets = Gauge
+  const [tireSearch, setTireSearch] = useState('')
   const [selectedVehicle, setSelectedVehicle] = useState('Toda la flota')
   const [selectedAxle, setSelectedAxle] = useState('Todos')
   const [selectedSide, setSelectedSide] = useState('Todos')
   const [selectedPosition, setSelectedPosition] = useState('Todos')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const searchContainerRef = useRef(null)
+
+  const searchSuggestions = useMemo(() => {
+    const query = tireSearch.trim().toLowerCase()
+    if (!query) return []
+    const results = []
+    const seen = new Set()
+
+    for (const tire of data.tires) {
+      const internalStr = tire.id_interno != null ? String(tire.id_interno) : ''
+      const paddedInternal = formatInternalId(tire.id_interno)
+      const serial = tire.serie || ''
+
+      // Sugerir ID interno si coincide con lo escrito
+      if (
+        internalStr &&
+        (internalStr.toLowerCase().includes(query) ||
+          paddedInternal.toLowerCase().includes(query))
+      ) {
+        const val = paddedInternal || internalStr
+        if (!seen.has(val)) {
+          seen.add(val)
+          results.push({ value: val, tire })
+        }
+      }
+
+      // Sugerir número de serie si coincide con lo escrito
+      if (serial && serial.toLowerCase().includes(query)) {
+        if (!seen.has(serial)) {
+          seen.add(serial)
+          results.push({ value: serial, tire })
+        }
+      }
+
+      if (results.length >= 8) break
+    }
+    return results
+  }, [data.tires, tireSearch])
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target)
+      ) {
+        setIsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [])
+
+  const applyTireFilters = (tire) => {
+    setSelectedVehicle(tire.patente || 'Toda la flota')
+    setSelectedAxle(tire.eje != null ? String(tire.eje) : 'Todos')
+    setSelectedSide(tire.lado || 'Todos')
+    setSelectedPosition(tire.posicion || 'Todos')
+  }
+
+  const handleSelectSuggestion = (item) => {
+    setTireSearch(item.value)
+    applyTireFilters(item.tire)
+    setIsDropdownOpen(false)
+    setSelectedIndex(-1)
+  }
+
+  const handleTireSearchChange = (event) => {
+    const nextValue = event.target.value
+    setTireSearch(nextValue)
+    setIsDropdownOpen(Boolean(nextValue.trim()))
+    setSelectedIndex(-1)
+    if (!nextValue.trim()) {
+      setSelectedVehicle('Toda la flota')
+      setSelectedAxle('Todos')
+      setSelectedSide('Todos')
+      setSelectedPosition('Todos')
+      return
+    }
+    const matchedTire = findMatchingTire(data.tires, nextValue)
+    if (matchedTire) {
+      applyTireFilters(matchedTire)
+    }
+  }
+
+  const handleTireSearchKeyDown = (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!isDropdownOpen && searchSuggestions.length > 0) {
+        setIsDropdownOpen(true)
+        setSelectedIndex(0)
+        return
+      }
+      setSelectedIndex((prev) =>
+        prev < searchSuggestions.length - 1 ? prev + 1 : 0
+      )
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSelectedIndex((prev) =>
+        prev > 0 ? prev - 1 : searchSuggestions.length - 1
+      )
+      return
+    }
+    if (event.key === 'Escape') {
+      setIsDropdownOpen(false)
+      setSelectedIndex(-1)
+      return
+    }
+    if (event.key === 'Enter') {
+      if (
+        isDropdownOpen &&
+        selectedIndex >= 0 &&
+        searchSuggestions[selectedIndex]
+      ) {
+        event.preventDefault()
+        handleSelectSuggestion(searchSuggestions[selectedIndex])
+        return
+      }
+      const query = tireSearch.trim()
+      if (!query) return
+      const matchedTire =
+        findMatchingTire(data.tires, query) ||
+        data.tires.find((tire) => tireMatchesIdentifier(tire, query))
+      if (matchedTire) {
+        applyTireFilters(matchedTire)
+        setIsDropdownOpen(false)
+      }
+    }
+  }
+
+  const activeMatchedTire = findMatchingTire(data.tires, tireSearch)
+
   // Los filtros de selección se aplican a viajes, neumáticos y series antes de calcular métricas.
   const trips =
     selectedVehicle === 'Toda la flota'
@@ -415,6 +599,7 @@ export default function MeasurementsView({ data }) {
       : data.trips.filter((trip) => trip.patente === selectedVehicle)
   const tires = data.tires.filter(
     (tire) =>
+      tireMatchesIdentifier(tire, tireSearch) &&
       (selectedVehicle === 'Toda la flota' ||
         tire.patente === selectedVehicle) &&
       (selectedAxle === 'Todos' || String(tire.eje) === selectedAxle) &&
@@ -429,21 +614,18 @@ export default function MeasurementsView({ data }) {
     (point) =>
       selectedVehicle === 'Toda la flota' || point.patente === selectedVehicle,
   )
-  const treadSeries = data.treadSeries.filter(
-    (point) =>
+  const treadSeries = data.treadSeries.filter((point) => {
+    const pointTire = data.tires.find((tire) => tire.id === point.id)
+    return (
+      (!pointTire || tireMatchesIdentifier(pointTire, tireSearch)) &&
       (selectedVehicle === 'Toda la flota' ||
         point.patente === selectedVehicle) &&
       // Las series de surco guardan el ID del neumático, no sus datos de posición.
-      (selectedAxle === 'Todos' ||
-        data.tires.find((tire) => tire.id === point.id)?.eje ===
-          Number(selectedAxle)) &&
-      (selectedSide === 'Todos' ||
-        data.tires.find((tire) => tire.id === point.id)?.lado ===
-          selectedSide) &&
-      (selectedPosition === 'Todos' ||
-        data.tires.find((tire) => tire.id === point.id)?.posicion ===
-          selectedPosition),
-  )
+      (selectedAxle === 'Todos' || pointTire?.eje === Number(selectedAxle)) &&
+      (selectedSide === 'Todos' || pointTire?.lado === selectedSide) &&
+      (selectedPosition === 'Todos' || pointTire?.posicion === selectedPosition)
+    )
+  })
   const values = (() => {
     const pressures = pressureSeries
       .map((point) => point.presion_final)
@@ -537,12 +719,83 @@ export default function MeasurementsView({ data }) {
         </div>
       </section>
       <section className="panel metric-filters">
+        <div className="filter-field search-field" ref={searchContainerRef}>
+          <label htmlFor="tire-search-filter">ID interno / Serie</label>
+          <div className="filter-search-input">
+            <Search size={14} />
+            <input
+              id="tire-search-filter"
+              name="tireSearch"
+              type="text"
+              autoComplete="off"
+              value={tireSearch}
+              onChange={handleTireSearchChange}
+              onKeyDown={handleTireSearchKeyDown}
+              onFocus={() => {
+                if (tireSearch.trim() && searchSuggestions.length > 0) {
+                  setIsDropdownOpen(true)
+                }
+              }}
+              placeholder="Ej: 10001 o MICH-..."
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              enterKeyHint="search"
+            />
+            {tireSearch && (
+              <button
+                type="button"
+                className="filter-search-clear"
+                onClick={() => {
+                  setTireSearch('')
+                  setIsDropdownOpen(false)
+                  setSelectedVehicle('Toda la flota')
+                  setSelectedAxle('Todos')
+                  setSelectedSide('Todos')
+                  setSelectedPosition('Todos')
+                }}
+                aria-label="Limpiar búsqueda"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          {isDropdownOpen && searchSuggestions.length > 0 && (
+            <div className="filter-search-dropdown" role="listbox">
+              {searchSuggestions.map((item, index) => (
+                <button
+                  key={`${item.value}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={index === selectedIndex}
+                  className={`filter-search-dropdown-item ${
+                    index === selectedIndex ? 'is-selected' : ''
+                  }`}
+                  onClick={() => handleSelectSuggestion(item)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  {item.value}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="filter-field">
           <label htmlFor="vehicle-filter">Vehiculo</label>
           <select
             id="vehicle-filter"
             value={selectedVehicle}
-            onChange={(event) => setSelectedVehicle(event.target.value)}
+            onChange={(event) => {
+              const nextVehicle = event.target.value
+              setSelectedVehicle(nextVehicle)
+              if (
+                tireSearch &&
+                activeMatchedTire &&
+                activeMatchedTire.patente !== nextVehicle
+              ) {
+                setTireSearch('')
+              }
+            }}
           >
             <option>Toda la flota</option>
             {data.vehicles.map((vehicle) => (
@@ -555,7 +808,17 @@ export default function MeasurementsView({ data }) {
           <select
             id="axle-filter"
             value={selectedAxle}
-            onChange={(event) => setSelectedAxle(event.target.value)}
+            onChange={(event) => {
+              const nextAxle = event.target.value
+              setSelectedAxle(nextAxle)
+              if (
+                tireSearch &&
+                activeMatchedTire &&
+                String(activeMatchedTire.eje) !== nextAxle
+              ) {
+                setTireSearch('')
+              }
+            }}
           >
             <option>Todos</option>
             {[
@@ -576,7 +839,17 @@ export default function MeasurementsView({ data }) {
           <select
             id="side-filter"
             value={selectedSide}
-            onChange={(event) => setSelectedSide(event.target.value)}
+            onChange={(event) => {
+              const nextSide = event.target.value
+              setSelectedSide(nextSide)
+              if (
+                tireSearch &&
+                activeMatchedTire &&
+                activeMatchedTire.lado !== nextSide
+              ) {
+                setTireSearch('')
+              }
+            }}
           >
             <option>Todos</option>
             {[...new Set(data.tires.map((tire) => tire.lado).filter(Boolean))]
@@ -591,7 +864,17 @@ export default function MeasurementsView({ data }) {
           <select
             id="position-filter"
             value={selectedPosition}
-            onChange={(event) => setSelectedPosition(event.target.value)}
+            onChange={(event) => {
+              const nextPosition = event.target.value
+              setSelectedPosition(nextPosition)
+              if (
+                tireSearch &&
+                activeMatchedTire &&
+                activeMatchedTire.posicion !== nextPosition
+              ) {
+                setTireSearch('')
+              }
+            }}
           >
             <option>Todos</option>
             {[
@@ -610,6 +893,12 @@ export default function MeasurementsView({ data }) {
           <span>
             {selectedVehicle} <b>/</b> Eje {selectedAxle} <b>/</b>{' '}
             {selectedSide} <b>/</b> {selectedPosition}
+            {activeMatchedTire && (
+              <>
+                {' '}
+                <b>/</b> ID {formatInternalId(activeMatchedTire.id_interno)}
+              </>
+            )}
           </span>
           <small>
             {trips.length} viajes · {tires.length} lecturas de neumáticos
@@ -633,6 +922,8 @@ export default function MeasurementsView({ data }) {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>ID Interno</th>
+                <th>Serie</th>
                 <th>Vehículo</th>
                 <th>Eje</th>
                 <th>Lado</th>
@@ -649,6 +940,12 @@ export default function MeasurementsView({ data }) {
                 tires.map((tire) => (
                   <tr key={tire.id}>
                     <td>{tire.id}</td>
+                    <td>
+                      {tire.id_interno != null
+                        ? String(tire.id_interno).padStart(5, '0')
+                        : '-'}
+                    </td>
+                    <td>{tire.serie || '-'}</td>
                     <td>
                       <strong>{tire.patente}</strong>
                     </td>
@@ -684,7 +981,7 @@ export default function MeasurementsView({ data }) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={12}>
                     No hay neumáticos para los filtros seleccionados.
                   </td>
                 </tr>

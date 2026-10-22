@@ -11,6 +11,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=120)
+    empresa: str = Field(default="Logistica Sierra", min_length=1, max_length=120)
 
 
 class UserResponse(BaseModel):
@@ -21,12 +22,14 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     full_name: str | None
+    empresa: str | None = None
 
 
 class VehicleMetrics(BaseModel):
     """Indicadores agregados de un vehículo para el panel de flota."""
 
     patente: str
+    empresa: str | None = None
     modelo: str | None = None
     viaje_actual: int | None = None
     kilometraje: float | None = None
@@ -45,6 +48,9 @@ class TireReading(BaseModel):
     """Campos persistidos de un neumático expuestos al cliente."""
 
     id: int
+    id_interno: int | None = Field(default=None, ge=0, le=99999)
+    serie: str | None = None
+    empresa: str | None = None
     patente: str
     fecha_adquisicion: date | None = None
     cantidad_recauchajes: int | None = None

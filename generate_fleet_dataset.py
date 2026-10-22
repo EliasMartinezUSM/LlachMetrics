@@ -49,8 +49,11 @@ tread_depth_mm = np.round(RNG.uniform(1.5, 18.0, size=N_TRIPS), 2)
 crack_prob = np.clip(0.55 - (tread_depth_mm / 18.0) * 0.5, 0.03, 0.6)
 has_cracks = RNG.random(N_TRIPS) < crack_prob
 
+DEFAULT_EMPRESA = "Logistica Sierra"
+
 df = pd.DataFrame({
     "trip_id": trip_id,
+    "empresa": DEFAULT_EMPRESA,
     "cost_usd": cost_usd,
     "distance_km": distance_km,
     "tread_depth_mm": tread_depth_mm,

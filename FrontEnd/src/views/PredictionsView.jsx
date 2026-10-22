@@ -90,6 +90,10 @@ function MaintenanceEstimate({ tire, vehicleLabel }) {
   const critical = tread < 8
   const weeks = critical ? 3 : Math.max(4, Math.round((tread - 6) * 4))
   const action = critical ? 'cambio' : 'recauchado'
+  const internalCode =
+    tire.id_interno != null
+      ? `ID ${String(tire.id_interno).padStart(5, '0')}`
+      : `Neumatico #${tire.id}`
   return (
     <div className={`maintenance-estimate ${critical ? 'critical' : ''}`}>
       <CircleDot size={19} />
@@ -99,8 +103,10 @@ function MaintenanceEstimate({ tire, vehicleLabel }) {
           Se recomienda {action} en aproximadamente {weeks} semanas
         </strong>
         <span>
-          Neumatico {tire.eje ?? '-'} / {tire.lado || '-'} /{' '}
-          {tire.posicion || '-'} · {tread.toFixed(2)} mm de surco
+          {internalCode}
+          {tire.serie ? ` (${tire.serie})` : ''} · Eje {tire.eje ?? '-'} /{' '}
+          {tire.lado || '-'} / {tire.posicion || '-'} · {tread.toFixed(2)} mm de
+          surco
         </span>
       </div>
     </div>
@@ -229,8 +235,12 @@ export default function PredictionsView({ data }) {
               <option value="Todos">Todos</option>
               {maintenanceTires.map((tire) => (
                 <option key={tire.id} value={tire.id}>
-                  Neumatico #{tire.id} · {tire.eje ?? '-'} / {tire.lado || '-'}{' '}
-                  / {tire.posicion || '-'}
+                  ID{' '}
+                  {tire.id_interno != null
+                    ? String(tire.id_interno).padStart(5, '0')
+                    : tire.id}
+                  {tire.serie ? ` (${tire.serie})` : ''} · {tire.eje ?? '-'} /{' '}
+                  {tire.lado || '-'} / {tire.posicion || '-'}
                 </option>
               ))}
             </select>

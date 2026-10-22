@@ -1,6 +1,10 @@
 import os
+from pathlib import Path
+import sys
 import unittest
 from unittest.mock import Mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret-key-not-for-production")

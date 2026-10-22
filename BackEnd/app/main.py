@@ -14,9 +14,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import Base, engine, get_db
+from app.database import engine, ensure_schema, get_db
 from app.deps import get_current_user
-from app.models import PasswordHash, Tire, Trip, TripVehicle, User, Vehicle
+from app.models import DEFAULT_COMPANY, PasswordHash, Tire, Trip, TripVehicle, User, Vehicle
 from app.schemas import (
     DashboardData,
     DistanceSeriesPoint,
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     """Crea las tablas al iniciar; permite arrancar aunque PostgreSQL no responda."""
     try:
-        Base.metadata.create_all(bind=engine)
+        ensure_schema(engine)
     except SQLAlchemyError:
         logger.warning(
             "PostgreSQL no está disponible. La API arrancará, "
@@ -83,6 +83,7 @@ def register(user_data: UserCreate, db: Annotated[Session, Depends(get_db)]) -> 
         user = User(
             email=normalized_email,
             full_name=user_data.full_name,
+            empresa=(user_data.empresa or DEFAULT_COMPANY).strip() or DEFAULT_COMPANY,
         )
         db.add(user)
         db.flush()
@@ -154,11 +155,28 @@ def read_current_user(current_user: Annotated[User, Depends(get_current_user)]) 
 
 
 # --- Métricas y series históricas ---
-def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMetrics]:
+def _user_company(current_user: User | None) -> str | None:
+    """Obtiene la empresa del usuario autenticado para aislar los activos visibles."""
+    if current_user is None:
+        return None
+    return (current_user.empresa or DEFAULT_COMPANY).strip() or DEFAULT_COMPANY
+
+
+def _vehicle_metrics(
+    db: Session,
+    patente: str | None = None,
+    empresa: str | None = None,
+) -> list[VehicleMetrics]:
     """Combina vehículos, neumáticos y presiones para calcular indicadores por patente."""
     vehicle_query = select(Vehicle)
     tire_query = select(Tire)
     pressure_query = select(TripVehicle, Trip.fecha).join(Trip, Trip.id == TripVehicle.id_viaje)
+    if empresa:
+        vehicle_query = vehicle_query.where(Vehicle.empresa == empresa)
+        tire_query = tire_query.where(Tire.empresa == empresa)
+        pressure_query = pressure_query.join(
+            Vehicle, Vehicle.patente == TripVehicle.id_vehiculo
+        ).where(Vehicle.empresa == empresa)
     if patente:
         vehicle_query = vehicle_query.where(Vehicle.patente == patente)
         tire_query = tire_query.where(Tire.id_vehiculo == patente)
@@ -197,6 +215,7 @@ def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMet
         result.append(
             VehicleMetrics(
                 patente=vehicle.patente,
+                empresa=vehicle.empresa,
                 modelo=vehicle.modelo,
                 viaje_actual=latest_pressure.id_viaje if latest_pressure else None,
                 kilometraje=vehicle.kilometraje,
@@ -214,26 +233,36 @@ def _vehicle_metrics(db: Session, patente: str | None = None) -> list[VehicleMet
 
 
 @app.get("/data/vehicles", response_model=list[VehicleMetrics])
-def read_vehicles(db: Annotated[Session, Depends(get_db)]) -> list[VehicleMetrics]:
-    """Lista las métricas agregadas de todos los vehículos registrados."""
+def read_vehicles(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> list[VehicleMetrics]:
+    """Lista las métricas agregadas de todos los vehículos registrados de la empresa del usuario."""
     try:
-        return _vehicle_metrics(db)
+        return _vehicle_metrics(db, empresa=_user_company(current_user))
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
 
 
 @app.get("/data/vehicles/{patente}/series", response_model=list[TripSeriesPoint])
 def read_vehicle_series(
-    patente: str, db: Annotated[Session, Depends(get_db)]
+    patente: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
 ) -> list[TripSeriesPoint]:
     """Devuelve los viajes y presiones ordenados cronológicamente para una patente."""
     try:
-        rows = db.execute(
+        empresa = _user_company(current_user)
+        query = (
             select(Trip, TripVehicle)
             .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
             .where(TripVehicle.id_vehiculo == patente)
-            .order_by(Trip.fecha, Trip.id)
-        ).all()
+        )
+        if empresa:
+            query = query.join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo).where(
+                Vehicle.empresa == empresa
+            )
+        rows = db.execute(query.order_by(Trip.fecha, Trip.id)).all()
         return [
             TripSeriesPoint(
                 id_viaje=trip.id,
@@ -252,14 +281,17 @@ def read_vehicle_series(
 @app.get("/data/trips", response_model=list[FleetTripSeriesPoint])
 def read_fleet_series(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
 ) -> list[FleetTripSeriesPoint]:
     """Devuelve los viajes de todos los vehículos para construir series de flota."""
     try:
-        rows = db.execute(
-            select(Trip, TripVehicle)
-            .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
-            .order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)
-        ).all()
+        empresa = _user_company(current_user)
+        query = select(Trip, TripVehicle).join(TripVehicle, TripVehicle.id_viaje == Trip.id)
+        if empresa:
+            query = query.join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo).where(
+                Vehicle.empresa == empresa
+            )
+        rows = db.execute(query.order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)).all()
         return [
             FleetTripSeriesPoint(
                 patente=trip_vehicle.id_vehiculo,
@@ -279,15 +311,21 @@ def read_fleet_series(
 @app.get("/data/pressure-series", response_model=list[PressureSeriesPoint])
 def read_pressure_series(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
 ) -> list[PressureSeriesPoint]:
     """Devuelve las lecturas de presión final existentes, ordenadas por fecha y viaje."""
     try:
-        rows = db.execute(
+        empresa = _user_company(current_user)
+        query = (
             select(Trip, TripVehicle)
             .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
             .where(TripVehicle.presion_final.is_not(None))
-            .order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)
-        ).all()
+        )
+        if empresa:
+            query = query.join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo).where(
+                Vehicle.empresa == empresa
+            )
+        rows = db.execute(query.order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)).all()
         return [
             PressureSeriesPoint(
                 id_viaje=trip.id,
@@ -304,15 +342,21 @@ def read_pressure_series(
 @app.get("/data/distance-series", response_model=list[DistanceSeriesPoint])
 def read_distance_series(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
 ) -> list[DistanceSeriesPoint]:
     """Calcula acumulados cronológicos de distancia para la flota y cada vehículo."""
     try:
-        rows = db.execute(
+        empresa = _user_company(current_user)
+        query = (
             select(Trip, TripVehicle)
             .join(TripVehicle, TripVehicle.id_viaje == Trip.id)
             .where(Trip.kilometros.is_not(None))
-            .order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)
-        ).all()
+        )
+        if empresa:
+            query = query.join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo).where(
+                Vehicle.empresa == empresa
+            )
+        rows = db.execute(query.order_by(Trip.fecha, Trip.id, TripVehicle.id_vehiculo)).all()
         fleet_total = 0.0
         vehicle_totals: dict[str, float] = {}
         result = []
@@ -336,12 +380,17 @@ def read_distance_series(
 
 
 @app.get("/data/tread-series", response_model=list[TreadSeriesPoint])
-def read_tread_series(db: Annotated[Session, Depends(get_db)]) -> list[TreadSeriesPoint]:
+def read_tread_series(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> list[TreadSeriesPoint]:
     """Devuelve la profundidad de surcos registrada por neumático y fecha de adquisición."""
     try:
-        tires = db.scalars(
-            select(Tire).order_by(Tire.fecha_adquisicion, Tire.id)
-        ).all()
+        empresa = _user_company(current_user)
+        query = select(Tire)
+        if empresa:
+            query = query.where(Tire.empresa == empresa)
+        tires = db.scalars(query.order_by(Tire.fecha_adquisicion, Tire.id)).all()
         return [
             TreadSeriesPoint(
                 id=tire.id,
@@ -356,13 +405,25 @@ def read_tread_series(db: Annotated[Session, Depends(get_db)]) -> list[TreadSeri
 
 
 @app.get("/data/tires", response_model=list[TireReading])
-def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireReading]:
+def read_tire_readings(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> list[TireReading]:
     """Expone los datos persistidos de cada neumático para filtros y tablas del frontend."""
     try:
-        tires = db.scalars(select(Tire).order_by(Tire.id_vehiculo, Tire.eje, Tire.lado, Tire.posicion, Tire.id)).all()
+        empresa = _user_company(current_user)
+        query = select(Tire)
+        if empresa:
+            query = query.where(Tire.empresa == empresa)
+        tires = db.scalars(
+            query.order_by(Tire.id_vehiculo, Tire.eje, Tire.lado, Tire.posicion, Tire.id)
+        ).all()
         return [
             TireReading(
                 id=tire.id,
+                id_interno=tire.id_interno,
+                serie=tire.serie,
+                empresa=tire.empresa,
                 patente=tire.id_vehiculo,
                 fecha_adquisicion=tire.fecha_adquisicion,
                 cantidad_recauchajes=tire.cantidad_recauchajes,
@@ -380,30 +441,62 @@ def read_tire_readings(db: Annotated[Session, Depends(get_db)]) -> list[TireRead
 
 
 @app.get("/data/readings", response_model=ReadingSummary)
-def read_summary(db: Annotated[Session, Depends(get_db)]) -> ReadingSummary:
+def read_summary(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> ReadingSummary:
     """Calcula totales y promedios globales de viajes, presiones y neumáticos."""
     try:
-        trip_totals = db.execute(
-            select(func.coalesce(func.sum(Trip.kilometros), 0), func.coalesce(func.sum(Trip.costo), 0))
-        ).one()
-        pressure_averages = db.execute(
-            select(func.avg(TripVehicle.presion_inicio), func.avg(TripVehicle.presion_final))
-        ).one()
-        tread_average = db.scalar(select(func.avg(Tire.profundidad_surcos)))
+        empresa = _user_company(current_user)
+        trip_query = select(
+            func.coalesce(func.sum(Trip.kilometros), 0),
+            func.coalesce(func.sum(Trip.costo), 0),
+        )
+        pressure_query = select(
+            func.avg(TripVehicle.presion_inicio),
+            func.avg(TripVehicle.presion_final),
+        )
+        tread_query = select(func.avg(Tire.profundidad_surcos))
+        vehicle_count_query = select(func.count(Vehicle.patente))
+        tire_count_query = select(func.count(Tire.id))
+
+        if empresa:
+            trip_query = (
+                trip_query.join(TripVehicle, TripVehicle.id_viaje == Trip.id)
+                .join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo)
+                .where(Vehicle.empresa == empresa)
+            )
+            pressure_query = (
+                pressure_query.join(Vehicle, Vehicle.patente == TripVehicle.id_vehiculo)
+                .where(Vehicle.empresa == empresa)
+            )
+            tread_query = tread_query.where(Tire.empresa == empresa)
+            vehicle_count_query = vehicle_count_query.where(Vehicle.empresa == empresa)
+            tire_count_query = tire_count_query.where(Tire.empresa == empresa)
+
+        trip_totals = db.execute(trip_query).one()
+        pressure_averages = db.execute(pressure_query).one()
+        tread_average = db.scalar(tread_query)
         return ReadingSummary(
             kilometros_totales=trip_totals[0],
             costo_total=trip_totals[1],
             presion_inicio_media=pressure_averages[0],
             presion_final_media=pressure_averages[1],
             profundidad_surcos_media=tread_average,
-            vehiculos=db.scalar(select(func.count(Vehicle.patente))) or 0,
-            neumaticos=db.scalar(select(func.count(Tire.id))) or 0,
+            vehiculos=db.scalar(vehicle_count_query) or 0,
+            neumaticos=db.scalar(tire_count_query) or 0,
         )
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None
 
 
 @app.get("/data/dashboard", response_model=DashboardData)
-def read_dashboard(db: Annotated[Session, Depends(get_db)]) -> DashboardData:
+def read_dashboard(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user)] = None,
+) -> DashboardData:
     """Agrupa el resumen global y las métricas por vehículo en una respuesta."""
-    return DashboardData(summary=read_summary(db), vehicles=read_vehicles(db))
+    return DashboardData(
+        summary=read_summary(db, current_user),
+        vehicles=read_vehicles(db, current_user),
+    )

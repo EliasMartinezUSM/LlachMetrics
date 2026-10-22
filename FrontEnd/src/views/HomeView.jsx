@@ -1,7 +1,9 @@
 import { AlertTriangle, Bell, ClipboardList, Gauge, Truck } from 'lucide-react'
 
-export default function HomeView({ onNavigate, data }) {
+export default function HomeView({ onNavigate, data, companyName }) {
   const { summary, vehicles } = data
+  const activeCompany =
+    companyName || vehicles[0]?.empresa || 'Logistica Sierra'
   const vehiclesInTrip = vehicles.filter(
     (vehicle) => vehicle.viaje_actual != null,
   ).length
@@ -39,6 +41,7 @@ export default function HomeView({ onNavigate, data }) {
     <>
       <section className="welcome-row">
         <div>
+          <p className="eyebrow">{activeCompany}</p>
           <h1>Panel General.</h1>
         </div>
         <button

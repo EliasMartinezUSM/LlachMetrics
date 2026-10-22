@@ -23,7 +23,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.engine import make_url
@@ -31,13 +31,15 @@ from sqlalchemy.engine import make_url
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings
-from app.database import Base
-from app.models import Driver, Tire, Trip, TripVehicle, Vehicle
+from app.database import ensure_schema
+from app.models import DEFAULT_COMPANY, Driver, Tire, Trip, TripVehicle, Vehicle
 
 
 VEHICLE_COUNT = 12
 DRIVER_COUNT = 8
 TIRES_PER_VEHICLE = 4
+INTERNAL_TIRE_ID_BASE = 10000
+TIRE_MANUFACTURER_PREFIXES = ("MICH", "BRID", "CONT", "GOOD", "PIRE")
 TIRE_POSITIONS = (
     (1, "Izquierdo", "Exterior"),
     (1, "Derecho", "Exterior"),
@@ -104,9 +106,25 @@ def clear_business_data(session_factory: sessionmaker) -> None:
         db.execute(delete(Driver))
 
 
-def get_or_create_fleet(db, random_generator: random.Random) -> tuple[list[Vehicle], list[Driver]]:
-    vehicles = list(db.scalars(select(Vehicle).order_by(Vehicle.patente)).all())
-    drivers = list(db.scalars(select(Driver).order_by(Driver.id)).all())
+def get_or_create_fleet(
+    db,
+    random_generator: random.Random,
+    empresa: str = DEFAULT_COMPANY,
+) -> tuple[list[Vehicle], list[Driver]]:
+    vehicles = list(
+        db.scalars(
+            select(Vehicle)
+            .where(Vehicle.empresa == empresa)
+            .order_by(Vehicle.patente)
+        ).all()
+    )
+    drivers = list(
+        db.scalars(
+            select(Driver)
+            .where(Driver.empresa == empresa)
+            .order_by(Driver.id)
+        ).all()
+    )
 
     while len(vehicles) < VEHICLE_COUNT:
         index = len(vehicles) + 1
@@ -115,13 +133,14 @@ def get_or_create_fleet(db, random_generator: random.Random) -> tuple[list[Vehic
             modelo=random_generator.choice(("Volvo FH", "Scania R", "Mercedes Actros")),
             kilometraje=0,
             consumo_total=0,
+            empresa=empresa,
         )
         db.add(vehicle)
         vehicles.append(vehicle)
 
     while len(drivers) < DRIVER_COUNT:
         index = len(drivers) + 1
-        driver = Driver(nombre=f"Conductor {index:02d}")
+        driver = Driver(nombre=f"Conductor {index:02d}", empresa=empresa)
         db.add(driver)
         drivers.append(driver)
 
@@ -145,15 +164,35 @@ class TireLifecycle:
       completo del neumatico anterior.
     """
 
-    def __init__(self, db, random_generator: random.Random):
+    def __init__(self, db, random_generator: random.Random, empresa: str = DEFAULT_COMPANY):
         self.db = db
         self.rng = random_generator
+        self.empresa = empresa
         self.active: dict[tuple[str, int, str, str], Tire] = {}
         self.wear_rate: dict[tuple[str, int, str, str], float] = {}
+        current_max = db.scalar(select(func.max(Tire.id_interno)))
+        self.next_internal_id = max(
+            INTERNAL_TIRE_ID_BASE + 1,
+            (int(current_max) + 1) if current_max is not None else (INTERNAL_TIRE_ID_BASE + 1),
+        )
+
+    def _next_internal_number(self) -> int:
+        internal_id = min(99999, self.next_internal_id)
+        self.next_internal_id += 1
+        return internal_id
+
+    def _new_serial_number(self, acquired_on: date, internal_id: int) -> str:
+        prefix = self.rng.choice(TIRE_MANUFACTURER_PREFIXES)
+        batch_digits = self.rng.randint(1000, 9999)
+        return f"{prefix}-{acquired_on.strftime('%Y%m')}-{batch_digits}-{internal_id:05d}"
 
     def _new_tire(self, vehicle: Vehicle, eje: int, lado: str, posicion: str, acquired_on: date) -> Tire:
+        internal_id = self._next_internal_number()
         tire = Tire(
             id_vehiculo=vehicle.patente,
+            serie=self._new_serial_number(acquired_on, internal_id),
+            id_interno=internal_id,
+            empresa=vehicle.empresa or self.empresa,
             fecha_adquisicion=acquired_on,
             cantidad_recauchajes=0,
             profundidad_surcos=round(self.rng.uniform(TREAD_NEW_MM - 0.5, TREAD_NEW_MM + 0.5), 2),
@@ -218,6 +257,11 @@ def seed(
     database_name: str | None = None,
 ) -> tuple[int, int, int, int]:
     rows = load_rows(csv_path)
+    default_empresa = (
+        (rows[0].get("empresa") or DEFAULT_COMPANY).strip()
+        if rows
+        else DEFAULT_COMPANY
+    ) or DEFAULT_COMPANY
     random_generator = random.Random(seed_value)
     database_url = make_url(get_settings().database_url)
     if database_name:
@@ -226,23 +270,26 @@ def seed(
     engine = create_engine(database_url, pool_pre_ping=True, connect_args={"connect_timeout": 3})
     session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     try:
-        Base.metadata.create_all(bind=engine)
+        ensure_schema(engine)
         if reset:
             clear_business_data(session_factory)
 
         with session_factory.begin() as db:
-            vehicles, drivers = get_or_create_fleet(db, random_generator)
+            vehicles, drivers = get_or_create_fleet(db, random_generator, empresa=default_empresa)
             vehicle_codes = [vehicle.patente for vehicle in vehicles]
             driver_ids = [driver.id for driver in drivers]
 
         tire_updates = 0
         try:
             with session_factory.begin() as db:
-                lifecycle = TireLifecycle(db, random_generator)
+                lifecycle = TireLifecycle(db, random_generator, empresa=default_empresa)
 
                 first_date = date.today() - timedelta(days=len(rows))
                 for row_index, row in enumerate(rows):
+                    row_empresa = (row.get("empresa") or default_empresa).strip() or default_empresa
                     vehicle = db.get(Vehicle, vehicle_codes[row_index % len(vehicle_codes)])
+                    if vehicle.empresa is None:
+                        vehicle.empresa = row_empresa
                     driver_id = driver_ids[row_index % len(driver_ids)]
                     trip_date = first_date + timedelta(days=row_index)
                     distance_km = float(row["distance_km"])

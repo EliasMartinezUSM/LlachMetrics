@@ -2,10 +2,13 @@
 
 from datetime import date
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, ForeignKey, Integer, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+DEFAULT_COMPANY = "Logistica Sierra"
 
 
 class User(Base):
@@ -16,6 +19,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(Text, unique=True, index=True)
     full_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    empresa: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=DEFAULT_COMPANY, index=True
+    )
     password: Mapped["PasswordHash"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
@@ -40,15 +46,29 @@ class Vehicle(Base):
     kilometraje: Mapped[float | None] = mapped_column("Kilometraje", Numeric, nullable=True)
     modelo: Mapped[str | None] = mapped_column("Modelo", Text, nullable=True)
     consumo_total: Mapped[float | None] = mapped_column("Consumo total", Numeric, nullable=True)
+    empresa: Mapped[str | None] = mapped_column(
+        "Empresa", Text, nullable=True, default=DEFAULT_COMPANY, index=True
+    )
 
 
 class Tire(Base):
     """Registro de un neumático, su posición y su estado de uso."""
 
     __tablename__ = "Neumatico"
+    __table_args__ = (
+        CheckConstraint(
+            '"id_interno" >= 0 AND "id_interno" <= 99999',
+            name="ck_neumatico_id_interno_5_digits",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     id_vehiculo: Mapped[str] = mapped_column(ForeignKey("Vehiculo.Patente"), index=True)
+    serie: Mapped[str | None] = mapped_column("Serie", Text, nullable=True)
+    id_interno: Mapped[int | None] = mapped_column("id_interno", Integer, nullable=True)
+    empresa: Mapped[str | None] = mapped_column(
+        "Empresa", Text, nullable=True, default=DEFAULT_COMPANY, index=True
+    )
     fecha_adquisicion: Mapped[date | None] = mapped_column("Fecha adquisicion", Date, nullable=True)
     cantidad_recauchajes: Mapped[int | None] = mapped_column("Cantidad recauchajes", Integer, nullable=True, default=0)
     profundidad_surcos: Mapped[float | None] = mapped_column("Profundidad surcos", Numeric, nullable=True)
@@ -66,6 +86,9 @@ class Driver(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str | None] = mapped_column("Nombre", Text, nullable=True)
+    empresa: Mapped[str | None] = mapped_column(
+        "Empresa", Text, nullable=True, default=DEFAULT_COMPANY, index=True
+    )
 
 
 class Trip(Base):

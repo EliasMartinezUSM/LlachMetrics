@@ -19,8 +19,15 @@ export default function Dashboard({ user, onLogout }) {
       .then(setDashboardData)
       .catch((error) => setDataError(error.message))
   }, [])
+  const companyName = user.empresa || 'Logistica Sierra'
   const views = {
-    inicio: <HomeView onNavigate={setActiveView} data={dashboardData} />,
+    inicio: (
+      <HomeView
+        onNavigate={setActiveView}
+        data={dashboardData}
+        companyName={companyName}
+      />
+    ),
     mediciones: <MeasurementsView data={dashboardData} />,
     predicciones: <PredictionsView data={dashboardData} />,
   }
@@ -54,6 +61,7 @@ export default function Dashboard({ user, onLogout }) {
             <span className="avatar">{initials}</span>
             <span>
               <strong>{displayName}</strong>
+              <small>{companyName}</small>
               <small>{user.email}</small>
             </span>
             <ChevronDown size={15} />

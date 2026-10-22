@@ -198,3 +198,107 @@ td:first-child{color:var(--ink)}
   border: 1px solid rgba(56, 189, 248, 0.25) !important;
 }
 
+/* Buscador de neumático por ID interno o número de serie en el panel de métricas */
+.metric-filters {
+  flex-wrap: wrap;
+}
+.metric-filters .filter-field {
+  min-width: 138px;
+}
+.metric-filters .filter-field.search-field {
+  position: relative;
+  min-width: 215px;
+  flex: 1 1 215px;
+}
+.filter-search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface);
+}
+.filter-search-input:focus-within {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.filter-search-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: 11px 'DM Sans', sans-serif;
+}
+.filter-search-input input::placeholder {
+  color: var(--muted);
+}
+.filter-search-clear {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.filter-search-clear:hover {
+  color: var(--accent);
+}
+.filter-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 12px rgba(56, 189, 248, 0.08);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.filter-search-dropdown::-webkit-scrollbar {
+  width: 5px;
+}
+.filter-search-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+.filter-search-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+.filter-search-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+.filter-search-dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: 11px 'DM Mono', monospace;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.filter-search-dropdown-item:hover,
+.filter-search-dropdown-item.is-selected {
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+
