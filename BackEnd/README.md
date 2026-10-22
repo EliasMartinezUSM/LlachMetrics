@@ -42,10 +42,13 @@ Argon2 extrae ese salt del hash guardado para verificar la contraseña.
 5. Arranca la API:
 
    ```powershell
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 La documentacion interactiva queda disponible en `http://localhost:8000/docs`.
+Para compartir la API mediante el reenvío de puertos de VS Code, reenvía el
+puerto `8000` como público y configura `CORS_ORIGINS` en `.env` con el origen
+HTTPS del frontend. No incluyas una barra final en el origen.
 
 ## Esquema de usuarios
 

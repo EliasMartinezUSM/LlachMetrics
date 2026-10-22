@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { UserRound } from 'lucide-react'
+import { apiBaseUrl } from '../data/api'
 import Logo from './Logo'
 
 export default function Login({ onLogin }) {
@@ -16,7 +17,7 @@ export default function Login({ onLogin }) {
     try {
       const formData = new URLSearchParams({ username: email, password })
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/auth/login`,
+        `${apiBaseUrl}/auth/login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -32,7 +33,7 @@ export default function Login({ onLogin }) {
       // El login entrega el JWT; /auth/me devuelve los datos de perfil para la sesión.
       localStorage.setItem('access_token', data.access_token)
       const userResponse = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/auth/me`,
+        `${apiBaseUrl}/auth/me`,
         { headers: { Authorization: `Bearer ${data.access_token}` } },
       )
       const user = await userResponse.json().catch(() => ({}))

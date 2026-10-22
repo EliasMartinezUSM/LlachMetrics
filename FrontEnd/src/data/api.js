@@ -1,9 +1,11 @@
-const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+export const apiBaseUrl = (
+  import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+).replace(/\/+$/, '')
 
 async function getData(path) {
   // Reutiliza el JWT guardado tras iniciar sesión para consultar endpoints protegidos.
   const token = localStorage.getItem('access_token')
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   const data = await response.json().catch(() => ({}))

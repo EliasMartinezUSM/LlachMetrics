@@ -111,6 +111,32 @@ VITE_API_URL=http://127.0.0.1:8000
 
 La dirección del frontend se mostrará en la terminal de Vite, normalmente `http://localhost:5173`.
 
+## Compartir mediante el reenvío de puertos de VS Code
+
+La aplicación está configurada para usar estos túneles:
+
+- Frontend: `https://88hfzxbh-5173.brs.devtunnels.ms/`
+- Backend: `https://88hfzxbh-8000.brs.devtunnels.ms/`
+
+En VS Code, reenvía los puertos `5173` y `8000` y configúralos como **Públicos**
+si las personas que recibirán el enlace no pertenecen a tu sesión de VS Code.
+Arranca los servidores con una terminal en cada carpeta:
+
+```powershell
+# BackEnd
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# FrontEnd
+npm run dev
+```
+
+`FrontEnd/.env` define `VITE_API_URL` con el túnel del backend y
+`VITE_DEV_TUNNEL_HOST` con el host permitido por Vite. `BackEnd/.env` define
+`CORS_ORIGINS` con el origen del frontend. Si VS Code asigna otras direcciones,
+actualiza esos tres valores y reinicia ambos servidores; Vite incorpora las
+variables al iniciar. CORS permite que el navegador use la API desde el frontend,
+pero no sustituye autenticación ni hace privado un túnel configurado como público.
+
 ## Cargar datos de prueba
 
 Con PostgreSQL activo y el entorno virtual del backend habilitado, ejecuta desde `BackEnd/`:
@@ -133,6 +159,5 @@ python scripts/seed_database.py --reset-business-data
 ```
 
 El cargador utiliza `synthetic.csv`, crea registros de vehículos y conductores, y agrega viajes, presiones y datos de neumáticos.
-
 
 
