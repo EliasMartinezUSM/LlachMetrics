@@ -137,14 +137,15 @@ html,body{background:var(--paper);color:var(--ink)}
 .topbar{position:relative}
 .top-actions{position:absolute;top:50%;right:clamp(24px,4vw,58px);transform:translateY(-50%)}
 
-:root{--ink:#e8f3f1;--muted:#8ca4a5;--paper:#0b1719;--surface:#102224;--line:#203638;--accent:#61e3e0}
+:root{--ink:#e8f3f1;--muted:#8ca4a5;--paper:#0b121b;--surface:#101824;--line:#203638;--accent:#38bdf8;--accent-glow:rgba(56,189,248,0.14);--accent-subtle:rgba(56,189,248,0.08)}
 html,body{background:var(--paper);color:var(--ink)}
 button,input,select{color:var(--ink)}
 .app-shell,.content,.login-shell{background:var(--paper)}
 .sidebar,.topbar,.login-panel,.metric-card,.panel,.series-card,.prediction-summary article,.vehicle-prediction{background:var(--surface);border-color:var(--line)}
 .nav-item,.icon-button,.logout-button,.user-card>svg,.breadcrumb,.metric-meta small,.subtitle,.app-footer,.series-heading p,.filter-field label,.filter-context small,.prediction-summary small,.prediction-meta,.login-help,.login-legal{color:var(--muted)}
 .nav-item:hover,.nav-item.active,.brand strong,.eyebrow,.form-options a,.login-help a,.filter-context,.details-button,.tabs button.active,.model-status{color:var(--accent)}
-.nav-item:hover,.nav-item.active{background:var(--line)}
+.nav-item:hover{background:rgba(56,189,248,0.08)}
+.nav-item.active{background:rgba(56,189,248,0.16);box-shadow:inset 3px 0 0 var(--accent)}
 .metric-icon,.table-icon,.series-icon,.summary-icon{color:var(--accent);background:var(--line)}
 .metric-icon.orange,.metric-icon.blue,.metric-icon.purple,.metric-icon.green,.table-icon.orange,.table-icon.blue,.table-icon.purple,.table-icon.green,.series-card.orange .series-icon,.series-card.blue .series-icon,.series-card.green .series-icon,.series-card.purple .series-icon,.summary-icon.blue,.summary-icon.orange,.summary-icon.green,.summary-icon.purple{color:var(--accent);background:var(--line)}
 .chart-line,.area-line{stroke:var(--accent)}
@@ -174,3 +175,26 @@ th{color:var(--muted)}
 td{color:var(--muted);border-color:var(--line)}
 td:first-child{color:var(--ink)}
 .brand-mark{color:inherit;background:transparent}
+
+/* Status pills, vehicle recommendations and badges */
+.status-pill, .status-pill.blue, .vehicle-status.blue {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+}
+.status-pill i, .status-pill.blue i, .vehicle-status.blue i {
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+}
+
+/* Icons (metric, table, series, summary) - Unificado con el color de vehículos registrados */
+.metric-icon, .table-icon, .series-icon, .summary-icon,
+.metric-icon.blue, .metric-icon.green, .metric-icon.orange, .metric-icon.purple,
+.table-icon.blue, .table-icon.green, .table-icon.orange, .table-icon.purple,
+.summary-icon.blue, .summary-icon.green, .summary-icon.orange, .summary-icon.purple,
+.series-card.blue .series-icon, .series-card.green .series-icon, .series-card.orange .series-icon, .series-card.purple .series-icon {
+  color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+}
+

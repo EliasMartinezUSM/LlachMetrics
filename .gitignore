@@ -1,4 +1,4 @@
-/.ipynb_checkpoints/
+.ipynb_checkpoints/
 
 # Local environment variables and credentials
 **/.env
@@ -11,7 +11,7 @@
 credentials.json
 secrets.json
 
-# Python virtual environments & bytecode
+# Python virtual environments, caches & bytecode
 .venv/
 venv/
 ENV/
@@ -19,3 +19,11 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

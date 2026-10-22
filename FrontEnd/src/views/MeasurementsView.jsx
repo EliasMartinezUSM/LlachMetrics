@@ -126,9 +126,9 @@ function ResponsiveLine({ data, ...props }) {
             axisBottom={{ ...props.axisBottom, format: undefined }}
             axisLeft={props.axisLeft}
             enableGridX={false}
-            colors={['#23777f']}
+            colors={props.colors}
             borderRadius={2}
-            borderColor="#174f56"
+            borderColor="var(--accent)"
             tooltip={({ data: point }) => (
               <strong>
                 {point.x}: {format(point.costo, 2)} USD
