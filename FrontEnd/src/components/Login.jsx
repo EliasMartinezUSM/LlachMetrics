@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { UserRound } from 'lucide-react'
-import { apiBaseUrl } from '../data/api'
+import { apiFetch } from '../data/api'
 import Logo from './Logo'
 
 export default function Login({ onLogin }) {
@@ -16,29 +16,16 @@ export default function Login({ onLogin }) {
 
     try {
       const formData = new URLSearchParams({ username: email, password })
-      const response = await fetch(
-        `${apiBaseUrl}/auth/login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formData,
-        },
-      )
+      // La API responde con el perfil y guarda el JWT en una cookie HttpOnly.
+      const response = await apiFetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData,
+      })
 
-      const data = await response.json().catch(() => ({}))
+      const user = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.detail || 'No se pudo iniciar sesión')
-      }
-
-      // El login entrega el JWT; /auth/me devuelve los datos de perfil para la sesión.
-      localStorage.setItem('access_token', data.access_token)
-      const userResponse = await fetch(
-        `${apiBaseUrl}/auth/me`,
-        { headers: { Authorization: `Bearer ${data.access_token}` } },
-      )
-      const user = await userResponse.json().catch(() => ({}))
-      if (!userResponse.ok) {
-        throw new Error(user.detail || 'No se pudo obtener el usuario')
+        throw new Error(user.detail || 'No se pudo iniciar sesión')
       }
 
       onLogin(user)

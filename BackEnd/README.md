@@ -84,8 +84,9 @@ eliminarlo antes de arrancar.
 
 - `GET /health`: comprobacion de estado.
 - `POST /auth/register`: crea un usuario. Recibe JSON con `email`, `password` y `full_name` opcional.
-- `POST /auth/login`: recibe formulario OAuth2 (`username` es el email y `password`) y devuelve un JWT.
-- `GET /auth/me`: devuelve el usuario autenticado. Usa `Authorization: Bearer <token>`.
+- `POST /auth/login`: recibe formulario OAuth2 (`username` es el email y `password`), guarda el JWT en una cookie `HttpOnly` (`access_token`) y devuelve el perfil del usuario.
+- `POST /auth/logout`: elimina la cookie `HttpOnly` de sesión.
+- `GET /auth/me`: devuelve el usuario autenticado a partir de la cookie `HttpOnly`.
 
 ## Datos para el frontend
 

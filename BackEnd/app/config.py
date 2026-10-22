@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +14,13 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    # Cookie HttpOnly que transporta el JWT; JavaScript del navegador no puede leerla.
+    auth_cookie_name: str = "access_token"
+    # Solo se envía por HTTPS. Los navegadores aceptan cookies Secure en http://localhost.
+    auth_cookie_secure: bool = True
+    # "lax" o "strict" requieren que frontend y API compartan sitio (por ejemplo, mediante
+    # el proxy /api de Vite). "none" solo para despliegues cross-site, exige HTTPS.
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     cors_origins: str = (
         "http://localhost:5173,http://localhost:5174,"
         "http://127.0.0.1:5173,http://127.0.0.1:5174"

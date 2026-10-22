@@ -126,10 +126,11 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-`FrontEnd/.env` permite configurar `VITE_API_URL`; para el backend local utiliza:
+`FrontEnd/.env` configura el proxy de Vite para que la API se consuma bajo el mismo origen (`/api`) y la cookie `HttpOnly` de sesión sea de primera parte:
 
 ```text
-VITE_API_URL=http://127.0.0.1:8000
+VITE_API_URL=/api
+API_PROXY_TARGET=http://127.0.0.1:8000
 ```
 
 La dirección del frontend se mostrará en la terminal de Vite, normalmente `http://localhost:5173`.

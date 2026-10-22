@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import date
@@ -24,7 +24,6 @@ from app.schemas import (
     PressureSeriesPoint,
     ReadingSummary,
     TireReading,
-    Token,
     TreadSeriesPoint,
     TripSeriesPoint,
     UserCreate,
@@ -101,12 +100,13 @@ def register(user_data: UserCreate, db: Annotated[Session, Depends(get_db)]) -> 
         ) from None
 
 
-@app.post("/auth/login", response_model=Token)
+@app.post("/auth/login", response_model=UserResponse)
 def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    response: Response,
     db: Annotated[Session, Depends(get_db)],
-) -> Token:
-    """Verifica las credenciales y devuelve un JWT para las siguientes peticiones."""
+) -> User:
+    """Verifica las credenciales y guarda el JWT en una cookie HttpOnly que JavaScript no puede leer."""
     try:
         user = db.scalar(
             select(User).where(User.email == form_data.username.lower())
@@ -122,9 +122,29 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=create_access_token(str(user.id)))
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=create_access_token(str(user.id)),
+        max_age=settings.access_token_expire_minutes * 60,
+        path="/",
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+    )
+    return user
+
+
+@app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response) -> None:
+    """Elimina la cookie de sesión; el navegador no permite borrarla desde JavaScript."""
+    response.delete_cookie(
+        key=settings.auth_cookie_name,
+        path="/",
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+    )
 
 
 @app.get("/auth/me", response_model=UserResponse)

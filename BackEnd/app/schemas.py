@@ -23,13 +23,6 @@ class UserResponse(BaseModel):
     full_name: str | None
 
 
-class Token(BaseModel):
-    """Token Bearer devuelto al iniciar sesión correctamente."""
-
-    access_token: str
-    token_type: str = "bearer"
-
-
 class VehicleMetrics(BaseModel):
     """Indicadores agregados de un vehículo para el panel de flota."""
 
