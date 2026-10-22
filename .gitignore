@@ -10,3 +10,12 @@
 *.pfx
 credentials.json
 secrets.json
+
+# Python virtual environments & bytecode
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class

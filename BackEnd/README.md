@@ -11,6 +11,13 @@ Argon2 extrae ese salt del hash guardado para verificar la contraseña.
 
 1. Crea y activa el entorno virtual:
 
+   **Linux / macOS (Bash / Zsh):**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+   **Windows (PowerShell):**
    ```powershell
    python -m venv .venv
    .\.venv\Scripts\Activate.ps1
@@ -18,30 +25,41 @@ Argon2 extrae ese salt del hash guardado para verificar la contraseña.
 
 2. Instala las dependencias:
 
-   ```powershell
+   ```bash
    pip install -r requirements.txt
    ```
 
-3. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` y `JWT_SECRET_KEY`.
+3. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` y `JWT_SECRET_KEY`:
+
+   **Linux / macOS:**
+   ```bash
+   cp .env.example .env
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
    Ambas variables son obligatorias; `.env` es local y no se incluye en Git.
    Usa una clave JWT aleatoria y larga, y no reutilices contraseñas reales en
    `.env.example`.
 4. Crea la base de datos configurada en `DATABASE_URL` (el usuario PostgreSQL
    debe tener permiso para crear bases de datos):
 
-   ```powershell
+   ```bash
    python scripts/create_database.py
    ```
 
    Para probar con otro nombre sin tocar la base configurada:
 
-   ```powershell
+   ```bash
    python scripts/create_database.py --name llachmetrics_test
    ```
 
 5. Arranca la API:
 
-   ```powershell
+   ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
