@@ -18,6 +18,39 @@ import {
 const format = (value, digits = 1) =>
   Number(value || 0).toLocaleString('es-ES', { maximumFractionDigits: digits })
 
+const formatIsoDate = (isoDate) => {
+  if (typeof isoDate !== 'string') return String(isoDate ?? '')
+  const parts = isoDate.slice(0, 10).split('-')
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : isoDate
+}
+
+function aggregateByDate(items, getDate, getValue, reducer = 'avg') {
+  const groups = new Map()
+  for (const item of items) {
+    const dateKey = getDate(item)
+    const rawValue = getValue(item)
+    if (!dateKey || rawValue == null) continue
+    const value = Number(rawValue)
+    if (Number.isNaN(value)) continue
+    const current = groups.get(dateKey)
+    if (!current) {
+      groups.set(dateKey, { sum: value, count: 1, last: value })
+    } else {
+      current.sum += value
+      current.count += 1
+      current.last = value
+    }
+  }
+  const dates = Array.from(groups.keys()).sort()
+  const values = dates.map((dateKey) => {
+    const group = groups.get(dateKey)
+    if (reducer === 'sum') return group.sum
+    if (reducer === 'last') return group.last
+    return group.sum / group.count
+  })
+  return { dates, values }
+}
+
 function CostRangeVisualization({ points }) {
   const dates = points.map((point) =>
     new Date(point.x).toISOString().slice(0, 10),
@@ -80,7 +113,7 @@ function CostRangeVisualization({ points }) {
           axisBottom={{
             tickValues: 5,
             tickRotation: -30,
-            format: 'time:%d/%m/%Y',
+            format: '%d/%m/%Y',
             legend: 'Tiempo',
             legendOffset: 45,
             legendPosition: 'middle',
@@ -114,6 +147,10 @@ function CostRangeVisualization({ points }) {
 function ResponsiveLine({ data, ...props }) {
   if (data[0]?.id === 'Costo de viajes') {
     const bars = data[0].data.map((point) => ({ x: point.x, costo: point.y }))
+    const step = Math.max(1, Math.ceil((bars.length - 1) / 5))
+    const barTickValues = bars
+      .filter((_, index) => index % step === 0 || index === bars.length - 1)
+      .map((bar) => bar.x)
     return (
       <>
         <div className="cost-bars-chart">
@@ -125,7 +162,11 @@ function ResponsiveLine({ data, ...props }) {
             padding={0.25}
             valueScale={{ type: 'linear', min: 0, max: 'auto' }}
             indexScale={{ type: 'band', round: true }}
-            axisBottom={{ ...props.axisBottom, format: undefined }}
+            axisBottom={{
+              ...props.axisBottom,
+              tickValues: barTickValues,
+              format: formatIsoDate,
+            }}
             axisLeft={props.axisLeft}
             enableGridX={false}
             colors={props.colors}
@@ -133,7 +174,7 @@ function ResponsiveLine({ data, ...props }) {
             borderColor="var(--accent)"
             tooltip={({ data: point }) => (
               <strong>
-                {point.x}: {format(point.costo, 2)} USD
+                {formatIsoDate(point.x)}: {format(point.costo, 2)} USD
               </strong>
             )}
             theme={props.theme}
@@ -355,7 +396,7 @@ function SeriesChart({ metric }) {
             legend: metric.xTitle,
             legendOffset: metric.timeAxis ? 68 : 52,
             legendPosition: 'middle',
-            format: metric.timeAxis ? 'time:%d/%m/%Y' : ' >-.0f',
+            format: metric.timeAxis ? '%d/%m/%Y' : ' >-.0f',
           }}
           axisLeft={{
             tickValues: 5,
@@ -459,13 +500,38 @@ export default function MeasurementsView({ data }) {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const searchContainerRef = useRef(null)
 
+  const tiresById = useMemo(
+    () => new Map(data.tires.map((tire) => [tire.id, tire])),
+    [data.tires],
+  )
+
+  const latestPhysicalTires = useMemo(() => {
+    const byPhysicalKey = new Map()
+    for (const tire of data.tires) {
+      const key =
+        tire.id_interno != null
+          ? `interno:${tire.id_interno}`
+          : tire.serie
+            ? `serie:${tire.serie}`
+            : `id:${tire.id}`
+      const existing = byPhysicalKey.get(key)
+      if (
+        !existing ||
+        (tire.fecha_adquisicion || '') >= (existing.fecha_adquisicion || '')
+      ) {
+        byPhysicalKey.set(key, tire)
+      }
+    }
+    return Array.from(byPhysicalKey.values())
+  }, [data.tires])
+
   const searchSuggestions = useMemo(() => {
     const query = tireSearch.trim().toLowerCase()
     if (!query) return []
     const results = []
     const seen = new Set()
 
-    for (const tire of data.tires) {
+    for (const tire of latestPhysicalTires) {
       const internalStr = tire.id_interno != null ? String(tire.id_interno) : ''
       const paddedInternal = formatInternalId(tire.id_interno)
       const serial = tire.serie || ''
@@ -494,7 +560,7 @@ export default function MeasurementsView({ data }) {
       if (results.length >= 8) break
     }
     return results
-  }, [data.tires, tireSearch])
+  }, [latestPhysicalTires, tireSearch])
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -537,7 +603,7 @@ export default function MeasurementsView({ data }) {
       setSelectedPosition('Todos')
       return
     }
-    const matchedTire = findMatchingTire(data.tires, nextValue)
+    const matchedTire = findMatchingTire(latestPhysicalTires, nextValue)
     if (matchedTire) {
       applyTireFilters(matchedTire)
     }
@@ -581,8 +647,8 @@ export default function MeasurementsView({ data }) {
       const query = tireSearch.trim()
       if (!query) return
       const matchedTire =
-        findMatchingTire(data.tires, query) ||
-        data.tires.find((tire) => tireMatchesIdentifier(tire, query))
+        findMatchingTire(latestPhysicalTires, query) ||
+        latestPhysicalTires.find((tire) => tireMatchesIdentifier(tire, query))
       if (matchedTire) {
         applyTireFilters(matchedTire)
         setIsDropdownOpen(false)
@@ -590,7 +656,7 @@ export default function MeasurementsView({ data }) {
     }
   }
 
-  const activeMatchedTire = findMatchingTire(data.tires, tireSearch)
+  const activeMatchedTire = findMatchingTire(latestPhysicalTires, tireSearch)
 
   // Los filtros de selección se aplican a viajes, neumáticos y series antes de calcular métricas.
   const trips =
@@ -606,6 +672,18 @@ export default function MeasurementsView({ data }) {
       (selectedSide === 'Todos' || tire.lado === selectedSide) &&
       (selectedPosition === 'Todos' || tire.posicion === selectedPosition),
   )
+  const visibleTableTires = useMemo(
+    () =>
+      [...tires]
+        .sort(
+          (first, second) =>
+            (second.fecha_adquisicion || '').localeCompare(
+              first.fecha_adquisicion || '',
+            ) || second.id - first.id,
+        )
+        .slice(0, 150),
+    [tires],
+  )
   const pressureSeries = data.pressureSeries.filter(
     (point) =>
       selectedVehicle === 'Toda la flota' || point.patente === selectedVehicle,
@@ -615,7 +693,7 @@ export default function MeasurementsView({ data }) {
       selectedVehicle === 'Toda la flota' || point.patente === selectedVehicle,
   )
   const treadSeries = data.treadSeries.filter((point) => {
-    const pointTire = data.tires.find((tire) => tire.id === point.id)
+    const pointTire = tiresById.get(point.id)
     return (
       (!pointTire || tireMatchesIdentifier(pointTire, tireSearch)) &&
       (selectedVehicle === 'Toda la flota' ||
@@ -626,6 +704,33 @@ export default function MeasurementsView({ data }) {
       (selectedPosition === 'Todos' || pointTire?.posicion === selectedPosition)
     )
   })
+  const pressureChart = aggregateByDate(
+    pressureSeries,
+    (point) => point.fecha,
+    (point) => point.presion_final,
+    'avg',
+  )
+  const treadChart = aggregateByDate(
+    treadSeries,
+    (point) => point.fecha,
+    (point) => point.profundidad_surcos,
+    'avg',
+  )
+  const distanceChart = aggregateByDate(
+    distanceSeries,
+    (point) => point.fecha,
+    (point) =>
+      selectedVehicle === 'Toda la flota'
+        ? point.kilometros_acumulados
+        : point.kilometros_acumulados_vehiculo,
+    'last',
+  )
+  const costChart = aggregateByDate(
+    trips,
+    (trip) => trip.fecha,
+    (trip) => trip.costo,
+    'sum',
+  )
   const values = (() => {
     const pressures = pressureSeries
       .map((point) => point.presion_final)
@@ -658,8 +763,8 @@ export default function MeasurementsView({ data }) {
       value: format(values.average(values.pressures)),
       icon: Gauge,
       tone: 'blue',
-      values: values.pressures,
-      labels: pressureSeries.map((point) => point.fecha),
+      values: pressureChart.values,
+      labels: pressureChart.dates,
       timeAxis: true,
       yTitle: 'Presion (PSI)',
       xTitle: 'Tiempo',
@@ -671,8 +776,8 @@ export default function MeasurementsView({ data }) {
       value: format(values.average(values.tread)),
       icon: Activity,
       tone: 'green',
-      values: values.tread,
-      labels: treadSeries.map((point) => point.fecha),
+      values: treadChart.values,
+      labels: treadChart.dates,
       timeAxis: true,
       yTitle: 'Profundidad (mm)',
       xTitle: 'Tiempo',
@@ -684,8 +789,8 @@ export default function MeasurementsView({ data }) {
       value: format(values.distance.at(-1) || 0, 0),
       icon: TrendingUp,
       tone: 'orange',
-      values: values.distance,
-      labels: distanceSeries.map((point) => point.fecha),
+      values: distanceChart.values,
+      labels: distanceChart.dates,
       timeAxis: true,
       yTitle: 'Kilometraje (km)',
       xTitle: 'Tiempo',
@@ -700,8 +805,8 @@ export default function MeasurementsView({ data }) {
       ),
       icon: DollarSign,
       tone: 'purple',
-      values: values.costs,
-      labels: trips.map((trip) => trip.fecha),
+      values: costChart.values,
+      labels: costChart.dates,
       timeAxis: true,
       yTitle: 'Costo (USD)',
       xTitle: 'Viaje',
@@ -936,8 +1041,8 @@ export default function MeasurementsView({ data }) {
               </tr>
             </thead>
             <tbody>
-              {tires.length ? (
-                tires.map((tire) => (
+              {visibleTableTires.length ? (
+                visibleTableTires.map((tire) => (
                   <tr key={tire.id}>
                     <td>{tire.id}</td>
                     <td>

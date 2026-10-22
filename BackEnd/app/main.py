@@ -194,7 +194,10 @@ def _vehicle_metrics(
 
     result = []
     for vehicle in vehicles:
-        vehicle_tires = tires_by_vehicle.get(vehicle.patente, [])
+        vehicle_tires = sorted(
+            tires_by_vehicle.get(vehicle.patente, []),
+            key=lambda tire: (tire.fecha_adquisicion or date.min, tire.id or 0),
+        )
         vehicle_pressures = sorted(
             pressures_by_vehicle.get(vehicle.patente, []),
             key=lambda item: item[1] or date.min,
@@ -204,10 +207,19 @@ def _vehicle_metrics(
             (tire.eje, tire.lado, tire.posicion): tire
             for tire in vehicle_tires
         }
-        tread_values = [t.profundidad_surcos for t in vehicle_tires if t.profundidad_surcos is not None]
-        tire_kilometers = [t.kilometros for t in vehicle_tires if t.kilometros is not None]
+        active_tires = list(current_tires.values())
+        tread_values = [
+            float(t.profundidad_surcos)
+            for t in active_tires
+            if t.profundidad_surcos is not None
+        ]
+        tire_kilometers = [
+            float(t.kilometros)
+            for t in active_tires
+            if t.kilometros is not None
+        ]
         pressure_values = [
-            pressure_value
+            float(pressure_value)
             for pressure, _ in vehicle_pressures
             for pressure_value in (pressure.presion_inicio, pressure.presion_final)
             if pressure_value is not None
@@ -220,13 +232,25 @@ def _vehicle_metrics(
                 viaje_actual=latest_pressure.id_viaje if latest_pressure else None,
                 kilometraje=vehicle.kilometraje,
                 consumo_total=vehicle.consumo_total,
-                profundidad_surcos_media=(sum(tread_values) / len(tread_values) if tread_values else None),
-                kilometros_neumaticos=sum(tire_kilometers) if tire_kilometers else None,
-                neumaticos=len(current_tires),
-                neumaticos_agrietados=sum(1 for tire in vehicle_tires if tire.agrietado),
+                profundidad_surcos_media=(
+                    round(sum(tread_values) / len(tread_values), 2)
+                    if tread_values
+                    else None
+                ),
+                kilometros_neumaticos=(
+                    round(sum(tire_kilometers), 1)
+                    if tire_kilometers
+                    else None
+                ),
+                neumaticos=len(active_tires),
+                neumaticos_agrietados=sum(1 for tire in active_tires if tire.agrietado),
                 presion_inicio=latest_pressure.presion_inicio if latest_pressure else None,
                 presion_final=latest_pressure.presion_final if latest_pressure else None,
-                presion_promedio=(sum(pressure_values) / len(pressure_values) if pressure_values else None),
+                presion_promedio=(
+                    round(sum(pressure_values) / len(pressure_values), 2)
+                    if pressure_values
+                    else None
+                ),
             )
         )
     return result
@@ -416,7 +440,14 @@ def read_tire_readings(
         if empresa:
             query = query.where(Tire.empresa == empresa)
         tires = db.scalars(
-            query.order_by(Tire.id_vehiculo, Tire.eje, Tire.lado, Tire.posicion, Tire.id)
+            query.order_by(
+                Tire.id_vehiculo,
+                Tire.eje,
+                Tire.lado,
+                Tire.posicion,
+                Tire.fecha_adquisicion,
+                Tire.id,
+            )
         ).all()
         return [
             TireReading(
@@ -458,6 +489,7 @@ def read_summary(
         )
         tread_query = select(func.avg(Tire.profundidad_surcos))
         vehicle_count_query = select(func.count(Vehicle.patente))
+        distinct_tire_count_query = select(func.count(func.distinct(Tire.id_interno)))
         tire_count_query = select(func.count(Tire.id))
 
         if empresa:
@@ -472,11 +504,13 @@ def read_summary(
             )
             tread_query = tread_query.where(Tire.empresa == empresa)
             vehicle_count_query = vehicle_count_query.where(Vehicle.empresa == empresa)
+            distinct_tire_count_query = distinct_tire_count_query.where(Tire.empresa == empresa)
             tire_count_query = tire_count_query.where(Tire.empresa == empresa)
 
         trip_totals = db.execute(trip_query).one()
         pressure_averages = db.execute(pressure_query).one()
         tread_average = db.scalar(tread_query)
+        distinct_tire_count = db.scalar(distinct_tire_count_query) or 0
         return ReadingSummary(
             kilometros_totales=trip_totals[0],
             costo_total=trip_totals[1],
@@ -484,7 +518,7 @@ def read_summary(
             presion_final_media=pressure_averages[1],
             profundidad_surcos_media=tread_average,
             vehiculos=db.scalar(vehicle_count_query) or 0,
-            neumaticos=db.scalar(tire_count_query) or 0,
+            neumaticos=distinct_tire_count or (db.scalar(tire_count_query) or 0),
         )
     except SQLAlchemyError:
         raise HTTPException(status_code=503, detail="La base de datos no está disponible") from None

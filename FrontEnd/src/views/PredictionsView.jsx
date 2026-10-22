@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
   CalendarClock,
@@ -126,10 +126,26 @@ export default function PredictionsView({ data }) {
   const highRisk = predictions.filter(
     (prediction) => prediction.tone === 'red',
   ).length
+  const currentMountedTires = useMemo(() => {
+    const byPosition = new Map()
+    for (const tire of data.tires) {
+      const key = `${tire.patente}|${tire.eje}|${tire.lado}|${tire.posicion}`
+      const existing = byPosition.get(key)
+      if (
+        !existing ||
+        (tire.fecha_adquisicion || '') >= (existing.fecha_adquisicion || '')
+      ) {
+        byPosition.set(key, tire)
+      }
+    }
+    return Array.from(byPosition.values())
+  }, [data.tires])
   const maintenanceTires =
     selectedMaintenanceVehicle === 'Toda la flota'
-      ? data.tires
-      : data.tires.filter((tire) => tire.patente === selectedMaintenanceVehicle)
+      ? currentMountedTires
+      : currentMountedTires.filter(
+          (tire) => tire.patente === selectedMaintenanceVehicle,
+        )
   const selectedTire =
     selectedMaintenanceTire === 'Todos'
       ? maintenanceTires[0]
