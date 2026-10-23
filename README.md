@@ -20,7 +20,7 @@ LlachMetrics es la solución propuesta al desafío número 24 propuesto por la e
 - `BackEnd/scripts/seed_database.py`: carga datos de prueba en la base de datos a partir de `synthetic.csv`.
 - `generate_fleet_dataset.py`: genera un conjunto de viajes sintético reproducible.
 - `Modelo.ipynb`: notebook de exploración y modelado.
-- `WhatsAPI/`: módulo auxiliar independiente; no es necesario para ejecutar la aplicación web principal.
+- `WhatsAPI/`: aplicación web con React, Vite y EasyOCR para extracción y fusión gráfica de datos de documentos e inspecciones de neumáticos (opera en el puerto 5175 con API en el 8001 en paralelo a la aplicación principal sin conflictos de puertos o CORS).
 
 ## Requisitos
 
