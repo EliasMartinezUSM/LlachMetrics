@@ -36,28 +36,58 @@ function isPortListening(port, host = '127.0.0.1') {
   })
 }
 
-function easyOcrBackendPlugin(configDir, port = 8001) {
+function easyOcrBackendPlugin(configDir, ocrPort = 8001, mainBackendPort = 8000) {
   let ocrProcess = null
+  let mainBackendProcess = null
 
-  const ensureBackend = async () => {
-    if (ocrProcess) return
-    const alreadyUp = await isPortListening(port)
-    if (alreadyUp) return
-
+  const ensureBackends = async () => {
     const pythonBin = resolvePythonExecutable(configDir)
-    ocrProcess = spawn(
-      pythonBin,
-      ['-m', 'uvicorn', 'ocr_server:app', '--host', '127.0.0.1', '--port', String(port)],
-      {
-        cwd: configDir,
-        stdio: 'inherit',
-      },
-    )
+
+    if (!ocrProcess) {
+      const ocrUp = await isPortListening(ocrPort)
+      if (!ocrUp) {
+        ocrProcess = spawn(
+          pythonBin,
+          ['-m', 'uvicorn', 'ocr_server:app', '--host', '127.0.0.1', '--port', String(ocrPort)],
+          {
+            cwd: configDir,
+            stdio: 'inherit',
+          },
+        )
+      }
+    }
+
+    const backendDir = path.resolve(configDir, '..', 'BackEnd')
+    if (!mainBackendProcess && existsSync(path.join(backendDir, 'app', 'main.py'))) {
+      const mainUp = await isPortListening(mainBackendPort)
+      if (!mainUp) {
+        mainBackendProcess = spawn(
+          pythonBin,
+          [
+            '-m',
+            'uvicorn',
+            'app.main:app',
+            '--host',
+            '127.0.0.1',
+            '--port',
+            String(mainBackendPort),
+          ],
+          {
+            cwd: backendDir,
+            stdio: 'inherit',
+          },
+        )
+      }
+    }
 
     const cleanup = () => {
       if (ocrProcess && !ocrProcess.killed) {
         ocrProcess.kill('SIGTERM')
         ocrProcess = null
+      }
+      if (mainBackendProcess && !mainBackendProcess.killed) {
+        mainBackendProcess.kill('SIGTERM')
+        mainBackendProcess = null
       }
     }
 
@@ -69,10 +99,10 @@ function easyOcrBackendPlugin(configDir, port = 8001) {
   return {
     name: 'llachmetrics-easyocr-backend',
     configureServer() {
-      ensureBackend()
+      ensureBackends()
     },
     configurePreviewServer() {
-      ensureBackend()
+      ensureBackends()
     },
   }
 }
@@ -81,11 +111,20 @@ export default defineConfig(({ mode }) => {
   const configDir = fileURLToPath(new URL('.', import.meta.url))
   const env = loadEnv(mode, configDir, '')
   const ocrPort = Number(env.OCR_PORT || 8001)
+  const mainBackendPort = Number(env.MAIN_BACKEND_PORT || 8000)
   const targetUrl = env.API_PROXY_TARGET || `http://127.0.0.1:${ocrPort}`
+  const mainBackendTargetUrl =
+    env.MAIN_BACKEND_PROXY_TARGET || `http://127.0.0.1:${mainBackendPort}`
+
   const apiProxy = {
     '/api': {
       target: targetUrl,
       changeOrigin: true,
+    },
+    '/backend-api': {
+      target: mainBackendTargetUrl,
+      changeOrigin: true,
+      rewrite: (reqPath) => reqPath.replace(/^\/backend-api/, ''),
     },
   }
 
@@ -93,7 +132,7 @@ export default defineConfig(({ mode }) => {
   const previewPort = Number(env.PREVIEW_PORT || 4175)
 
   return {
-    plugins: [react(), easyOcrBackendPlugin(configDir, ocrPort)],
+    plugins: [react(), easyOcrBackendPlugin(configDir, ocrPort, mainBackendPort)],
     server: {
       host: '0.0.0.0',
       port: devPort,

@@ -926,6 +926,99 @@ textarea:focus-visible {
   line-height: 1.5;
 }
 
+.ingest-alert {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.ingest-success-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid #4caf78;
+  background: linear-gradient(180deg, rgba(22, 61, 43, 0.72) 0%, rgba(16, 24, 36, 0.96) 100%);
+  color: #9be2b4;
+}
+
+.ingest-success-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ingest-success-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ingest-success-title svg {
+  flex: 0 0 auto;
+  color: var(--merge-green-bright);
+}
+
+.ingest-success-title strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ingest-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ingest-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  border: 1px solid rgba(97, 227, 167, 0.35);
+  background: rgba(11, 18, 27, 0.75);
+  color: #b7cfcc;
+  font: 11px 'DM Mono', monospace;
+}
+
+.ingest-badge b {
+  color: var(--merge-green-bright);
+  font-weight: 600;
+}
+
+.ingest-submit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.ingest-submit-hint {
+  flex: 1;
+  min-width: 210px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ingest-submit-hint strong {
+  color: var(--ink);
+}
+
+.ingest-submit-btn {
+  min-height: 44px;
+  padding: 0 20px;
+  font-size: 13px;
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);

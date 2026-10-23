@@ -10,11 +10,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("JWT_SECRET_KEY", "test-only-secret-key-not-for-production")
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.main import app, read_summary, read_tire_readings, read_vehicles
+from app.main import (
+    app,
+    ingest_measurements,
+    read_summary,
+    read_tire_readings,
+    read_vehicles,
+)
 from app.models import Base, Driver, Tire, Trip, TripVehicle, User, Vehicle
+from app.schemas import DocumentFieldItem, MeasurementIngestRequest
 
 
 class DataContractTests(unittest.TestCase):
@@ -81,6 +89,8 @@ class DataContractTests(unittest.TestCase):
         self.assertIn("/data/distance-series", routes)
         self.assertIn("/data/tread-series", routes)
         self.assertIn("/data/vehicles/{patente}/series", routes)
+        self.assertIn("/data/measurements", routes)
+        self.assertIn("/data/ingest", routes)
 
     def test_tire_endpoint_returns_all_persisted_tire_fields(self) -> None:
         tire = Tire(
@@ -184,6 +194,100 @@ class DataContractTests(unittest.TestCase):
             self.assertEqual(sierra_summary.vehiculos, 1)
             self.assertEqual(sierra_summary.neumaticos, 1)
             self.assertEqual(float(sierra_summary.kilometros_totales), 300.0)
+
+        test_engine.dispose()
+
+    def test_ingest_measurements_from_whatsapi_fields_creates_and_updates_records(self) -> None:
+        test_engine = create_engine("sqlite://")
+        Base.metadata.create_all(bind=test_engine)
+        session_factory = sessionmaker(bind=test_engine)
+
+        with session_factory() as db:
+            payload = MeasurementIngestRequest(
+                documento="inspeccion_neumaticos_ot842.png",
+                campos=[
+                    DocumentFieldItem(label="Empresa", value="Logistica Sierra"),
+                    DocumentFieldItem(label="Fecha", value="22/10/2026"),
+                    DocumentFieldItem(label="Patente / Vehículo", value="KRTW-42"),
+                    DocumentFieldItem(label="Modelo", value="Volvo FH 500"),
+                    DocumentFieldItem(label="Conductor", value="Roberto Soto"),
+                    DocumentFieldItem(label="Kilometraje", value="148320 km"),
+                    DocumentFieldItem(label="Serie Neumático", value="MICH-88412"),
+                    DocumentFieldItem(label="ID Interno", value="40512"),
+                    DocumentFieldItem(label="Eje", value="Eje 2 Izquierdo Exterior"),
+                    DocumentFieldItem(label="Recauchajes", value="1"),
+                    DocumentFieldItem(label="Presión Inicial", value="112.5 PSI"),
+                    DocumentFieldItem(label="Presión Final", value="116.2 PSI"),
+                    DocumentFieldItem(label="Profundidad Surcos", value="11.4 mm"),
+                    DocumentFieldItem(label="Agrietado", value="No"),
+                    DocumentFieldItem(label="Costo Total", value="$185.000"),
+                ],
+            )
+
+            response = ingest_measurements(payload=payload, db=db, current_user=None)
+
+            self.assertEqual(response.status, "ok")
+            self.assertEqual(response.patente, "KRTW-42")
+            self.assertEqual(response.empresa, "Logistica Sierra")
+            self.assertTrue(response.vehiculo_creado)
+            self.assertIsNotNone(response.id_conductor)
+            self.assertIsNotNone(response.id_viaje)
+            self.assertIsNotNone(response.id_neumatico)
+
+            vehicles = read_vehicles(db)
+            self.assertEqual(len(vehicles), 1)
+            self.assertEqual(vehicles[0].patente, "KRTW-42")
+            self.assertEqual(vehicles[0].modelo, "Volvo FH 500")
+            self.assertEqual(float(vehicles[0].kilometraje or 0), 148320.0)
+            self.assertEqual(float(vehicles[0].presion_inicio or 0), 112.5)
+            self.assertEqual(float(vehicles[0].presion_final or 0), 116.2)
+            self.assertEqual(float(vehicles[0].profundidad_surcos_media or 0), 11.4)
+
+            tires = read_tire_readings(db)
+            self.assertEqual(len(tires), 1)
+            self.assertEqual(tires[0].serie, "MICH-88412")
+            self.assertEqual(tires[0].id_interno, 40512)
+            self.assertEqual(tires[0].eje, 2)
+            self.assertEqual(tires[0].lado, "Izquierdo")
+            self.assertEqual(tires[0].posicion, "Exterior")
+            self.assertFalse(tires[0].agrietado)
+
+            # Segunda lectura para actualizar el mismo vehículo con nuevas mediciones
+            update_payload = MeasurementIngestRequest(
+                campos=[
+                    DocumentFieldItem(label="Patente", value="KRTW-42"),
+                    DocumentFieldItem(label="Fecha", value="23/10/2026"),
+                    DocumentFieldItem(label="Kilometraje", value="148920 km"),
+                    DocumentFieldItem(label="Presión Inicial", value="110.0 PSI"),
+                    DocumentFieldItem(label="Presión Final", value="114.0 PSI"),
+                    DocumentFieldItem(label="Eje", value="Eje 2 Izquierdo Exterior"),
+                    DocumentFieldItem(label="Profundidad Surcos", value="10.8 mm"),
+                    DocumentFieldItem(label="Agrietado", value="Sí"),
+                ]
+            )
+            update_res = ingest_measurements(payload=update_payload, db=db, current_user=None)
+            self.assertFalse(update_res.vehiculo_creado)
+
+            updated_vehicle = read_vehicles(db)[0]
+            self.assertEqual(float(updated_vehicle.kilometraje or 0), 148920.0)
+            self.assertEqual(float(updated_vehicle.presion_final or 0), 114.0)
+            self.assertEqual(float(updated_vehicle.profundidad_surcos_media or 0), 10.8)
+            self.assertEqual(updated_vehicle.neumaticos_agrietados, 1)
+
+        test_engine.dispose()
+
+    def test_ingest_measurements_rejects_missing_patente(self) -> None:
+        test_engine = create_engine("sqlite://")
+        Base.metadata.create_all(bind=test_engine)
+        session_factory = sessionmaker(bind=test_engine)
+
+        with session_factory() as db:
+            payload = MeasurementIngestRequest(
+                campos=[DocumentFieldItem(label="Fecha", value="22/10/2026")]
+            )
+            with self.assertRaises(HTTPException) as ctx:
+                ingest_measurements(payload=payload, db=db, current_user=None)
+            self.assertEqual(ctx.exception.status_code, 422)
 
         test_engine.dispose()
 

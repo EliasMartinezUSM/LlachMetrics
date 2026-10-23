@@ -3,9 +3,11 @@ import {
   AlertCircle,
   ArrowUpDown,
   Check,
+  CheckCircle2,
   Combine,
   Copy,
   Crosshair,
+  Database,
   Download,
   Eye,
   EyeOff,
@@ -208,6 +210,10 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [backendOnline, setBackendOnline] = useState(true)
+  const [systemApiOnline, setSystemApiOnline] = useState(true)
+  const [isSavingToSystem, setIsSavingToSystem] = useState(false)
+  const [ingestResult, setIngestResult] = useState(null)
+  const [ingestError, setIngestError] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [ocrResult, setOcrResult] = useState(null)
 
@@ -237,6 +243,10 @@ export default function App() {
     fetch('/api/health')
       .then((res) => setBackendOnline(res.ok))
       .catch(() => setBackendOnline(false))
+
+    fetch('/backend-api/health')
+      .then((res) => setSystemApiOnline(res.ok))
+      .catch(() => setSystemApiOnline(false))
   }, [])
 
   useEffect(() => {
@@ -327,6 +337,8 @@ export default function App() {
     setEditableFields(initialFields)
     setSelectedBlockIds([])
     setFusionTargetFieldId('auto')
+    setIngestResult(null)
+    setIngestError('')
   }
 
   const runEasyOcrOnFile = async (fileToProcess) => {
@@ -697,6 +709,65 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const handleIngestToSystem = async () => {
+    if (!editableFields.length) {
+      setIngestError('No hay campos configurados para ingresar al sistema.')
+      return
+    }
+
+    setIsSavingToSystem(true)
+    setIngestError('')
+    setIngestResult(null)
+
+    const payload = {
+      documento: ocrResult?.filename || selectedFile?.name || 'documento_ocr',
+      campos: editableFields
+        .filter((f) => f.label && f.label.trim())
+        .map((f) => ({
+          label: f.label.trim(),
+          value: String(f.value ?? '').trim(),
+          category: f.category || 'general',
+        })),
+    }
+
+    try {
+      const response = await fetch('/backend-api/data/measurements', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        let detail = `Error HTTP ${response.status}`
+        try {
+          const errJson = await response.json()
+          if (typeof errJson.detail === 'string') {
+            detail = errJson.detail
+          } else if (Array.isArray(errJson.detail)) {
+            detail = errJson.detail.map((item) => item.msg || JSON.stringify(item)).join('; ')
+          }
+        } catch {
+          // Ignorar fallo de parseo JSON
+        }
+        throw new Error(detail)
+      }
+
+      const data = await response.json()
+      setIngestResult(data)
+      setSystemApiOnline(true)
+    } catch (err) {
+      setIngestError(
+        err.message ||
+          'No fue posible comunicarse con la API Backend para guardar las mediciones.',
+      )
+    } finally {
+      setIsSavingToSystem(false)
+    }
+  }
+
   const handleClearAll = () => {
     setSelectedFile(null)
     setPreviewUrl('')
@@ -705,6 +776,8 @@ export default function App() {
     setEditableFields([])
     setSelectedBlockIds([])
     setErrorMessage('')
+    setIngestResult(null)
+    setIngestError('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -727,7 +800,11 @@ export default function App() {
         <div className="top-actions">
           <span className={`status-pill ${backendOnline ? 'green' : 'red'}`}>
             <i />
-            {backendOnline ? 'Sistema OCR Listo' : 'Servicio desconectado'}
+            {backendOnline ? 'Sistema OCR Listo' : 'OCR desconectado'}
+          </span>
+          <span className={`status-pill ${systemApiOnline ? 'green' : 'red'}`}>
+            <i />
+            {systemApiOnline ? 'API Sistema Conectada' : 'API Sistema desconectada'}
           </span>
         </div>
       </header>
@@ -1191,15 +1268,84 @@ export default function App() {
                 <h2>Datos extraídos</h2>
               </div>
               {editableFields.length > 0 && activeTab === 'campos' && (
-                <button
-                  type="button"
-                  className="outline-button"
-                  onClick={handleAddField}
-                >
-                  <Plus size={15} /> Agregar campo
-                </button>
+                <div className="heading-actions">
+                  <button
+                    type="button"
+                    className="outline-button"
+                    onClick={handleAddField}
+                    disabled={isSavingToSystem}
+                  >
+                    <Plus size={15} /> Agregar campo
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={handleIngestToSystem}
+                    disabled={isSavingToSystem}
+                  >
+                    {isSavingToSystem ? (
+                      <>
+                        <RefreshCw size={15} className="spin" /> Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <Database size={15} /> Ingresar datos al sistema
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
+
+            {ingestError && (
+              <div className="alert-banner ingest-alert" role="alert" aria-live="polite">
+                <AlertCircle size={18} />
+                <span>{ingestError}</span>
+              </div>
+            )}
+
+            {ingestResult && (
+              <div className="ingest-success-card" role="status" aria-live="polite">
+                <div className="ingest-success-header">
+                  <div className="ingest-success-title">
+                    <CheckCircle2 size={18} />
+                    <strong>{ingestResult.message}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-action-btn compact"
+                    aria-label="Cerrar notificación de registro"
+                    onClick={() => setIngestResult(null)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="ingest-badges">
+                  <span className="ingest-badge">
+                    Vehículo: <b>{ingestResult.patente}</b>{' '}
+                    {ingestResult.vehiculo_creado ? '(Nuevo)' : '(Actualizado)'}
+                  </span>
+                  <span className="ingest-badge">
+                    Empresa: <b>{ingestResult.empresa}</b>
+                  </span>
+                  {ingestResult.id_viaje && (
+                    <span className="ingest-badge">
+                      Viaje registrado: <b>#{ingestResult.id_viaje}</b>
+                    </span>
+                  )}
+                  {ingestResult.id_neumatico && (
+                    <span className="ingest-badge">
+                      Medición neumático: <b>#{ingestResult.id_neumatico}</b>
+                    </span>
+                  )}
+                  {ingestResult.conductor_nombre && (
+                    <span className="ingest-badge">
+                      Conductor: <b>{ingestResult.conductor_nombre}</b>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="tabs-bar" role="tablist">
               <button
@@ -1247,10 +1393,10 @@ export default function App() {
                 className="fields-form"
                 onSubmit={(e) => {
                   e.preventDefault()
-                  handleExportJson()
+                  handleIngestToSystem()
                 }}
               >
-                <fieldset className="ocr-fieldset">
+                <fieldset className="ocr-fieldset" disabled={isSavingToSystem}>
                   <legend className="visually-hidden">Campos extraídos del documento</legend>
                   {editableFields.length === 0 ? (
                     <div className="empty-state">
@@ -1264,102 +1410,127 @@ export default function App() {
                       </button>
                     </div>
                   ) : (
-                    editableFields.map((field) => {
-                      const inputId = `ocr-input-${field.id}`
-                      const labelInputId = `ocr-label-${field.id}`
-                      const isIdentifier = IDENTIFIER_CATEGORIES.has(field.category)
-                      const isFieldHoveredFromCanvas =
-                        Array.isArray(field.block_ids) &&
-                        field.block_ids.some(
-                          (bid) => hoveredBoxIds.includes(bid) || selectedBlockIds.includes(bid),
-                        )
+                    <>
+                      {editableFields.map((field) => {
+                        const inputId = `ocr-input-${field.id}`
+                        const labelInputId = `ocr-label-${field.id}`
+                        const isIdentifier = IDENTIFIER_CATEGORIES.has(field.category)
+                        const isFieldHoveredFromCanvas =
+                          Array.isArray(field.block_ids) &&
+                          field.block_ids.some(
+                            (bid) => hoveredBoxIds.includes(bid) || selectedBlockIds.includes(bid),
+                          )
 
-                      return (
-                        <div
-                          key={field.id}
-                          className={[
-                            'form-group',
-                            isFieldHoveredFromCanvas ? 'highlighted' : '',
-                            recentlyUpdatedFieldId === field.id ? 'just-merged' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          onMouseEnter={() => {
-                            if (Array.isArray(field.block_ids) && field.block_ids.length > 0) {
-                              setHoveredBoxIds(field.block_ids)
-                            } else if (field.bbox && activeBlocks.length) {
-                              const matching = activeBlocks
-                                .filter((b) => field.value && b.text.includes(field.value))
-                                .map((b) => b.id)
-                              setHoveredBoxIds(matching)
-                            }
-                          }}
-                          onMouseLeave={() => setHoveredBoxIds([])}
-                        >
-                          <div className="field-header">
-                            <label htmlFor={inputId} className="visually-hidden">
-                              {field.label}
-                            </label>
-                            <input
-                              id={labelInputId}
-                              type="text"
-                              className="field-label-input"
-                              value={field.label}
-                              aria-label={`Nombre del campo: ${field.label}`}
-                              onChange={(e) => handleFieldLabelChange(field.id, e.target.value)}
-                            />
-                            {field.isMerged && (
-                              <span className="merged-pill">
-                                <Combine size={11} /> Fusionado
-                              </span>
-                            )}
-                          </div>
-                          <div className="field-input-row">
-                            <input
-                              id={inputId}
-                              name={field.label}
-                              type="text"
-                              className="field-input"
-                              value={field.value}
-                              autoCorrect={isIdentifier ? 'off' : 'on'}
-                              autoCapitalize={isIdentifier ? 'off' : 'sentences'}
-                              spellCheck={!isIdentifier}
-                              onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                              aria-label={field.label}
-                            />
-                            {ocrResult && (
+                        return (
+                          <div
+                            key={field.id}
+                            className={[
+                              'form-group',
+                              isFieldHoveredFromCanvas ? 'highlighted' : '',
+                              recentlyUpdatedFieldId === field.id ? 'just-merged' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            onMouseEnter={() => {
+                              if (Array.isArray(field.block_ids) && field.block_ids.length > 0) {
+                                setHoveredBoxIds(field.block_ids)
+                              } else if (field.bbox && activeBlocks.length) {
+                                const matching = activeBlocks
+                                  .filter((b) => field.value && b.text.includes(field.value))
+                                  .map((b) => b.id)
+                                setHoveredBoxIds(matching)
+                              }
+                            }}
+                            onMouseLeave={() => setHoveredBoxIds([])}
+                          >
+                            <div className="field-header">
+                              <label htmlFor={inputId} className="visually-hidden">
+                                {field.label}
+                              </label>
+                              <input
+                                id={labelInputId}
+                                type="text"
+                                className="field-label-input"
+                                value={field.label}
+                                aria-label={`Nombre del campo: ${field.label}`}
+                                onChange={(e) => handleFieldLabelChange(field.id, e.target.value)}
+                              />
+                              {field.isMerged && (
+                                <span className="merged-pill">
+                                  <Combine size={11} /> Fusionado
+                                </span>
+                              )}
+                            </div>
+                            <div className="field-input-row">
+                              <input
+                                id={inputId}
+                                name={field.label}
+                                type="text"
+                                className="field-input"
+                                value={field.value}
+                                autoCorrect={isIdentifier ? 'off' : 'on'}
+                                autoCapitalize={isIdentifier ? 'off' : 'sentences'}
+                                spellCheck={!isIdentifier}
+                                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                                aria-label={field.label}
+                              />
+                              {ocrResult && (
+                                <button
+                                  type="button"
+                                  className="icon-action-btn"
+                                  title="Seleccionar en la imagen para fusionar con otra caja"
+                                  aria-label={`Seleccionar ${field.label} en la imagen para fusionar`}
+                                  onClick={() => handleSelectFieldOnCanvas(field)}
+                                >
+                                  <Crosshair size={16} />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="icon-action-btn"
-                                title="Seleccionar en la imagen para fusionar con otra caja"
-                                aria-label={`Seleccionar ${field.label} en la imagen para fusionar`}
-                                onClick={() => handleSelectFieldOnCanvas(field)}
+                                title="Copiar valor"
+                                aria-label={`Copiar ${field.label}`}
+                                onClick={() => copyToClipboard(field.value, field.id)}
                               >
-                                <Crosshair size={16} />
+                                {copiedKey === field.id ? <Check size={16} /> : <Copy size={16} />}
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              className="icon-action-btn"
-                              title="Copiar valor"
-                              aria-label={`Copiar ${field.label}`}
-                              onClick={() => copyToClipboard(field.value, field.id)}
-                            >
-                              {copiedKey === field.id ? <Check size={16} /> : <Copy size={16} />}
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-action-btn"
-                              title="Eliminar campo"
-                              aria-label={`Eliminar ${field.label}`}
-                              onClick={() => handleDeleteField(field.id)}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                              <button
+                                type="button"
+                                className="icon-action-btn"
+                                title="Eliminar campo"
+                                aria-label={`Eliminar ${field.label}`}
+                                onClick={() => handleDeleteField(field.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
+                        )
+                      })}
+
+                      <div className="ingest-submit-footer">
+                        <div className="ingest-submit-hint">
+                          Verifica que el campo <strong>Patente</strong> y las mediciones estén
+                          correctas antes de guardar en la base de datos.
                         </div>
-                      )
-                    })
+                        <button
+                          type="submit"
+                          className="primary-button ingest-submit-btn"
+                          disabled={isSavingToSystem}
+                        >
+                          {isSavingToSystem ? (
+                            <>
+                              <RefreshCw size={16} className="spin" /> Ingresando mediciones a la
+                              base de datos...
+                            </>
+                          ) : (
+                            <>
+                              <Database size={16} /> Ingresar datos al sistema
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
                   )}
                 </fieldset>
               </form>

@@ -124,3 +124,56 @@ class DashboardData(BaseModel):
 
     summary: ReadingSummary
     vehicles: list[VehicleMetrics]
+
+
+class DocumentFieldItem(BaseModel):
+    """Par clave-valor extraído y configurado desde WhatsAPI OCR."""
+
+    label: str = Field(min_length=1, max_length=160)
+    value: str = Field(default="", max_length=500)
+    category: str | None = Field(default=None, max_length=64)
+
+
+class MeasurementIngestRequest(BaseModel):
+    """Solicitud para registrar mediciones de documento en la base de datos."""
+
+    documento: str | None = Field(default=None, max_length=260)
+    empresa: str | None = Field(default=None, max_length=120)
+    patente: str | None = Field(default=None, max_length=32)
+    modelo: str | None = Field(default=None, max_length=120)
+    conductor: str | None = Field(default=None, max_length=120)
+    fecha: date | str | None = None
+    kilometraje: float | str | None = None
+    consumo_total: float | str | None = None
+    distancia_km: float | str | None = None
+    costo: float | str | None = None
+    presion_inicio: float | str | None = None
+    presion_final: float | str | None = None
+    serie_neumatico: str | None = Field(default=None, max_length=120)
+    id_interno: int | str | None = None
+    eje: int | str | None = None
+    lado: str | None = Field(default=None, max_length=32)
+    posicion: str | None = Field(default=None, max_length=32)
+    cantidad_recauchajes: int | str | None = None
+    profundidad_surcos: float | str | None = None
+    agrietado: bool | str | None = None
+    kilometros_neumatico: float | str | None = None
+    campos: list[DocumentFieldItem] = Field(default_factory=list)
+
+
+class MeasurementIngestResponse(BaseModel):
+    """Confirmación con los identificadores actualizados o insertados en la BD."""
+
+    status: str = "ok"
+    message: str
+    patente: str
+    empresa: str
+    vehiculo_creado: bool = False
+    id_conductor: int | None = None
+    conductor_nombre: str | None = None
+    id_viaje: int | None = None
+    id_neumatico: int | None = None
+    resumen_mediciones: dict[str, str | int | float | bool | None] = Field(
+        default_factory=dict
+    )
+
