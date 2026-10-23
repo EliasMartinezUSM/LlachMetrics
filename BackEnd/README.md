@@ -9,28 +9,64 @@ Argon2 extrae ese salt del hash guardado para verificar la contraseña.
 
 ## Puesta en marcha
 
-1. Crea una base de datos PostgreSQL llamada `llachmetrics`.
-2. Crea y activa el entorno virtual:
+1. Crea y activa el entorno virtual:
 
+   **Linux / macOS (Bash / Zsh):**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+   **Windows (PowerShell):**
    ```powershell
    python -m venv .venv
    .\.venv\Scripts\Activate.ps1
    ```
 
-3. Instala las dependencias:
+2. Instala las dependencias:
 
-   ```powershell
+   ```bash
    pip install -r requirements.txt
    ```
 
-4. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` y `JWT_SECRET_KEY`.
+3. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` y `JWT_SECRET_KEY`:
+
+   **Linux / macOS:**
+   ```bash
+   cp .env.example .env
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   Ambas variables son obligatorias; `.env` es local y no se incluye en Git.
+   Usa una clave JWT aleatoria y larga, y no reutilices contraseñas reales en
+   `.env.example`.
+4. Crea la base de datos configurada en `DATABASE_URL` (el usuario PostgreSQL
+   debe tener permiso para crear bases de datos):
+
+   ```bash
+   python scripts/create_database.py
+   ```
+
+   Para probar con otro nombre sin tocar la base configurada:
+
+   ```bash
+   python scripts/create_database.py --name llachmetrics_test
+   ```
+
 5. Arranca la API:
 
-   ```powershell
-   uvicorn app.main:app --reload
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 La documentacion interactiva queda disponible en `http://localhost:8000/docs`.
+Para compartir la API mediante el reenvío de puertos de VS Code, reenvía el
+puerto `8000` como público y configura `CORS_ORIGINS` en `.env` con el origen
+HTTPS del frontend. No incluyas una barra final en el origen.
 
 ## Esquema de usuarios
 
@@ -48,8 +84,9 @@ eliminarlo antes de arrancar.
 
 - `GET /health`: comprobacion de estado.
 - `POST /auth/register`: crea un usuario. Recibe JSON con `email`, `password` y `full_name` opcional.
-- `POST /auth/login`: recibe formulario OAuth2 (`username` es el email y `password`) y devuelve un JWT.
-- `GET /auth/me`: devuelve el usuario autenticado. Usa `Authorization: Bearer <token>`.
+- `POST /auth/login`: recibe formulario OAuth2 (`username` es el email y `password`), guarda el JWT en una cookie `HttpOnly` (`access_token`) y devuelve el perfil del usuario.
+- `POST /auth/logout`: elimina la cookie `HttpOnly` de sesión.
+- `GET /auth/me`: devuelve el usuario autenticado a partir de la cookie `HttpOnly`.
 
 ## Datos para el frontend
 
@@ -71,6 +108,13 @@ Desde la carpeta `BackEnd`, con el entorno virtual activo:
 python scripts/seed_database.py
 ```
 
+Para cargar en una base alternativa (por ejemplo, la base temporal de prueba),
+usa `--database-name` o su alias `--name`:
+
+```powershell
+python scripts/seed_database.py --database-name llachmetrics_test
+```
+
 El script lee `../synthetic.csv`, crea una flota reutilizable de 12 vehículos
 y 8 conductores, y carga viajes, relaciones viaje-vehículo y cuatro neumáticos
 por cada viaje. Para volver a cargar desde cero las tablas de negocio:
@@ -78,3 +122,41 @@ por cada viaje. Para volver a cargar desde cero las tablas de negocio:
 ```powershell
 python scripts/seed_database.py --reset-business-data
 ```
+
+## Probar con una base de datos aislada
+
+Estos pasos crean y pueblan `llachmetrics_test` sin cambiar la base indicada
+en `.env`. Ejecuta los comandos desde `BackEnd`, con PostgreSQL activo y el
+entorno virtual habilitado:
+
+```powershell
+python scripts/create_database.py --name llachmetrics_test
+python scripts/seed_database.py --database-name llachmetrics_test --reset-business-data
+```
+
+Para que la API lea esa base, detén cualquier instancia activa con `Ctrl+C` y,
+en la misma terminal de PowerShell, elimina un posible override anterior y
+deriva una URL de prueba a partir de las credenciales de `.env`:
+
+```powershell
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+$env:DATABASE_URL = & .\.venv\Scripts\python.exe -c "from app.config import get_settings; from sqlalchemy.engine import make_url; print(make_url(get_settings().database_url).set(database='llachmetrics_test').render_as_string(hide_password=False))"
+uvicorn app.main:app --reload
+```
+
+La API crea las tablas automáticamente al arrancar. Abre `http://localhost:8000/docs`
+y usa `POST /auth/register` para crear un usuario en la base de prueba; después
+inicia sesión en el frontend con ese usuario. Los usuarios de la base original
+no existen en la base aislada a menos que los registres allí también.
+
+Para volver a la base definida en `.env`, detén la API con `Ctrl+C`, elimina el
+override en esa terminal y vuelve a arrancar el servidor:
+
+```powershell
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+uvicorn app.main:app --reload
+```
+
+La base de prueba se puede conservar para volver a usarla. Si quieres borrarla,
+hazlo solo cuando la API ya no esté conectada a ella y después de confirmar que
+no necesitas sus datos.
